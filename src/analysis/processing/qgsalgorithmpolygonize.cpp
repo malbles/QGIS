@@ -110,7 +110,7 @@ QVariantMap QgsPolygonizeAlgorithm::processAlgorithm( const QVariantMap &paramet
   feedback->setProgress( 40 );
 
   feedback->pushInfo( QObject::tr( "Noding lines…" ) );
-  const QgsGeometry lines = QgsGeometry::unaryUnion( linesList );
+  const QgsGeometry lines = QgsGeometry::unaryUnion( linesList, QgsGeometryParameters(), feedback );
   if ( feedback->isCanceled() )
     return QVariantMap();
   feedback->setProgress( 45 );
@@ -138,12 +138,15 @@ QVariantMap QgsPolygonizeAlgorithm::processAlgorithm( const QVariantMap &paramet
       outFeat.setGeometry( QgsGeometry( ( *partIt )->clone() ) );
       if ( !sink->addFeature( outFeat, QgsFeatureSink::FastInsert ) )
         throw QgsProcessingException( writeFeatureError( sink.get(), parameters, u"OUTPUT"_s ) );
+      else
+        feedback->featureAddedToSink( u"OUTPUT"_s );
       feedback->setProgress( 50 + part * step );
       polygonCount += 1;
     }
   }
 
   sink->finalize();
+  feedback->featureSinkFinalized( u"OUTPUT"_s );
 
   QVariantMap outputs;
   outputs.insert( u"OUTPUT"_s, dest );

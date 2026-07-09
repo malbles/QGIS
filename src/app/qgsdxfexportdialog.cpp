@@ -47,8 +47,7 @@ const int MAXIMUM_DD_SYMBOL_BLOCKS_COL = 3;
 
 FieldSelectorDelegate::FieldSelectorDelegate( QObject *parent )
   : QItemDelegate( parent )
-{
-}
+{}
 
 QWidget *FieldSelectorDelegate::createEditor( QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index ) const
 {
@@ -477,7 +476,8 @@ QList<QgsDxfExport::DxfLayer> QgsVectorLayerAndAttributeModel::layers() const
         if ( !layerIdx.contains( vl->id() ) )
         {
           layerIdx.insert( vl->id(), layers.size() );
-          layers << QgsDxfExport::DxfLayer( vl, mAttributeIdx.value( vl, -1 ), mCreateDDBlockInfo.value( vl, DEFAULT_DXF_DATA_DEFINED_BLOCKS ), mDDBlocksMaxNumberOfClasses.value( vl, -1 ), mOverriddenName.value( vl, QString() ) );
+          layers << QgsDxfExport::
+              DxfLayer( vl, mAttributeIdx.value( vl, -1 ), mCreateDDBlockInfo.value( vl, DEFAULT_DXF_DATA_DEFINED_BLOCKS ), mDDBlocksMaxNumberOfClasses.value( vl, -1 ), mOverriddenName.value( vl, QString() ) );
         }
       }
     }
@@ -488,7 +488,8 @@ QList<QgsDxfExport::DxfLayer> QgsVectorLayerAndAttributeModel::layers() const
       if ( !layerIdx.contains( vl->id() ) )
       {
         layerIdx.insert( vl->id(), layers.size() );
-        layers << QgsDxfExport::DxfLayer( vl, mAttributeIdx.value( vl, -1 ), mCreateDDBlockInfo.value( vl, DEFAULT_DXF_DATA_DEFINED_BLOCKS ), mDDBlocksMaxNumberOfClasses.value( vl, -1 ), mOverriddenName.value( vl, QString() ) );
+        layers << QgsDxfExport::
+            DxfLayer( vl, mAttributeIdx.value( vl, -1 ), mCreateDDBlockInfo.value( vl, DEFAULT_DXF_DATA_DEFINED_BLOCKS ), mDDBlocksMaxNumberOfClasses.value( vl, -1 ), mOverriddenName.value( vl, QString() ) );
       }
     }
   }
@@ -725,8 +726,7 @@ void QgsVectorLayerAndAttributeModel::enableDataDefinedBlocks( bool enabled )
 
 QgsDxfExportLayerTreeView::QgsDxfExportLayerTreeView( QWidget *parent )
   : QgsLayerTreeView( parent )
-{
-}
+{}
 
 void QgsDxfExportLayerTreeView::resizeEvent( QResizeEvent *event )
 {
@@ -766,7 +766,7 @@ QgsDxfExportDialog::QgsDxfExportDialog( QWidget *parent, Qt::WindowFlags f )
   mFileName->setStorageMode( QgsFileWidget::SaveFile );
   mFileName->setFilter( tr( "DXF files" ) + " (*.dxf *.DXF)" );
   mFileName->setDialogTitle( tr( "Export as DXF" ) );
-  mFileName->setDefaultRoot( settings.value( u"qgis/lastDxfDir"_s, QDir::homePath() ).toString() );
+  mFileName->setDefaultRoot( QgsDxfExportDialog::settingsLastDxfDir->value() );
 
   connect( this, &QDialog::accepted, this, &QgsDxfExportDialog::saveSettings );
   connect( mSelectAllButton, &QAbstractButton::clicked, this, &QgsDxfExportDialog::selectAll );
@@ -778,7 +778,7 @@ QgsDxfExportDialog::QgsDxfExportDialog( QWidget *parent, Qt::WindowFlags f )
   connect( mFileName, &QgsFileWidget::fileChanged, this, [this]( const QString &filePath ) {
     QgsSettings settings;
     QFileInfo tmplFileInfo( filePath );
-    settings.setValue( u"qgis/lastDxfDir"_s, tmplFileInfo.absolutePath() );
+    QgsDxfExportDialog::settingsLastDxfDir->setValue( tmplFileInfo.absolutePath() );
 
     setOkEnabled();
   } );
@@ -797,10 +797,14 @@ QgsDxfExportDialog::QgsDxfExportDialog( QWidget *parent, Qt::WindowFlags f )
     mScaleWidget->setScale( 1.0 / oldScale );
   mLayerTitleAsName->setChecked( QgsProject::instance()->readEntry( u"dxf"_s, u"/lastDxfLayerTitleAsName"_s, settings.value( u"qgis/lastDxfLayerTitleAsName"_s, "false" ).toString() ) != "false"_L1 );
   mMapExtentCheckBox->setChecked( QgsProject::instance()->readEntry( u"dxf"_s, u"/lastDxfMapRectangle"_s, settings.value( u"qgis/lastDxfMapRectangle"_s, "false" ).toString() ) != "false"_L1 );
-  mSelectedFeaturesOnly->setChecked( QgsProject::instance()->readEntry( u"dxf"_s, u"/lastDxfSelectedFeaturesOnly"_s, settings.value( u"qgis/lastDxfSelectedFeaturesOnly"_s, "false" ).toString() ) != "false"_L1 );
+  mSelectedFeaturesOnly->setChecked(
+    QgsProject::instance()->readEntry( u"dxf"_s, u"/lastDxfSelectedFeaturesOnly"_s, settings.value( u"qgis/lastDxfSelectedFeaturesOnly"_s, "false" ).toString() ) != "false"_L1
+  );
   mMTextCheckBox->setChecked( QgsProject::instance()->readEntry( u"dxf"_s, u"/lastDxfUseMText"_s, settings.value( u"qgis/lastDxfUseMText"_s, "true" ).toString() ) != "false"_L1 );
   mForce2d->setChecked( QgsProject::instance()->readEntry( u"dxf"_s, u"/lastDxfForce2d"_s, settings.value( u"qgis/lastDxfForce2d"_s, "false" ).toString() ) != "false"_L1 );
-  mHairlineWidthExportCheckBox->setChecked( QgsProject::instance()->readEntry( u"dxf"_s, u"/lastDxfHairlineWidthExport"_s, settings.value( u"qgis/lastDxfHairlineWidthExport"_s, "false" ).toString() ) != "false"_L1 );
+  mHairlineWidthExportCheckBox->setChecked(
+    QgsProject::instance()->readEntry( u"dxf"_s, u"/lastDxfHairlineWidthExport"_s, settings.value( u"qgis/lastDxfHairlineWidthExport"_s, "false" ).toString() ) != "false"_L1
+  );
 
   QStringList ids = QgsProject::instance()->mapThemeCollection()->mapThemes();
   ids.prepend( QString() );
@@ -814,8 +818,10 @@ QgsDxfExportDialog::QgsDxfExportDialog( QWidget *parent, Qt::WindowFlags f )
   mCrsSelector->setCrs( mCRS );
   mCrsSelector->setLayerCrs( mCRS );
   mCrsSelector->setShowAccuracyWarnings( true );
-  mCrsSelector->setMessage( tr( "Select the coordinate reference system for the dxf file. "
-                                "The data points will be transformed from the layer coordinate reference system." ) );
+  mCrsSelector->setMessage( tr(
+    "Select the coordinate reference system for the dxf file. "
+    "The data points will be transformed from the layer coordinate reference system."
+  ) );
 
   mEncoding->addItems( QgsDxfExport::encodings() );
   mEncoding->setCurrentIndex( mEncoding->findText( QgsProject::instance()->readEntry( u"dxf"_s, u"/lastDxfEncoding"_s, settings.value( u"qgis/lastDxfEncoding"_s, "CP1252" ).toString() ) ) );
@@ -856,7 +862,8 @@ void QgsDxfExportDialog::cleanGroup( QgsLayerTreeNode *node )
   const auto constChildren = node->children();
   for ( QgsLayerTreeNode *child : constChildren )
   {
-    if ( QgsLayerTree::isLayer( child ) && ( QgsLayerTree::toLayer( child )->layer()->type() != Qgis::LayerType::Vector || !QgsLayerTree::toLayer( child )->layer()->isSpatial() || !QgsLayerTree::toLayer( child )->layer()->isValid() ) )
+    if ( QgsLayerTree::isLayer( child )
+         && ( QgsLayerTree::toLayer( child )->layer()->type() != Qgis::LayerType::Vector || !QgsLayerTree::toLayer( child )->layer()->isSpatial() || !QgsLayerTree::toLayer( child )->layer()->isValid() ) )
     {
       toRemove << child;
       continue;
@@ -922,7 +929,8 @@ void QgsDxfExportDialog::loadSettingsFromFile()
     file.close();
   }
 
-  if ( QMessageBox::question( this, tr( "DXF Export - Load from XML File" ), tr( "Are you sure you want to load settings from XML? This will change some values in the DXF Export dialog." ) ) == QMessageBox::Yes )
+  if ( QMessageBox::question( this, tr( "DXF Export - Load from XML File" ), tr( "Are you sure you want to load settings from XML? This will change some values in the DXF Export dialog." ) )
+       == QMessageBox::Yes )
   {
     resultFlag = loadSettingsFromXML( domDocument, errorMessage );
     if ( !resultFlag )
@@ -1256,7 +1264,7 @@ void QgsDxfExportDialog::saveSettings()
 {
   QgsSettings settings;
   QFileInfo dxfFileInfo( mFileName->filePath() );
-  settings.setValue( u"qgis/lastDxfDir"_s, dxfFileInfo.absolutePath() );
+  QgsDxfExportDialog::settingsLastDxfDir->setValue( dxfFileInfo.absolutePath() );
   settings.setValue( u"qgis/lastDxfSymbologyMode"_s, mSymbologyModeComboBox->currentIndex() );
   settings.setValue( u"qgis/lastSymbologyExportScale"_s, mScaleWidget->scale() != 0 ? 1.0 / mScaleWidget->scale() : 0 );
   settings.setValue( u"qgis/lastDxfMapRectangle"_s, mMapExtentCheckBox->isChecked() );

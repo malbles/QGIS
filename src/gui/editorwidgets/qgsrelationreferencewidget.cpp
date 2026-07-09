@@ -344,12 +344,12 @@ void QgsRelationReferenceWidget::setEditorContext( const QgsAttributeEditorConte
   mCanvas = canvas;
   mMessageBar = messageBar;
 
-  mMapToolIdentify.reset( new QgsMapToolIdentifyFeature( mCanvas ) );
+  mMapToolIdentify = make_qobject_unique<QgsMapToolIdentifyFeature>( mCanvas );
   mMapToolIdentify->setButton( mMapIdentificationButton );
 
   if ( mEditorContext.cadDockWidget() )
   {
-    mMapToolDigitize.reset( new QgsMapToolDigitizeFeature( mCanvas, mEditorContext.cadDockWidget() ) );
+    mMapToolDigitize = make_qobject_unique<QgsMapToolDigitizeFeature>( mCanvas, mEditorContext.cadDockWidget() );
     mMapToolDigitize->setButton( mAddEntryButton );
     updateAddEntryButton();
   }
@@ -457,9 +457,7 @@ void QgsRelationReferenceWidget::init()
         QVariant nullValue = QgsApplication::nullRepresentation();
 
         QgsFeature ft;
-        QgsFeatureIterator fit = mFilterExpression.isEmpty()
-                                   ? mReferencedLayer->getFeatures()
-                                   : mReferencedLayer->getFeatures( mFilterExpression );
+        QgsFeatureIterator fit = mFilterExpression.isEmpty() ? mReferencedLayer->getFeatures() : mReferencedLayer->getFeatures( mFilterExpression );
         while ( fit.nextFeature( ft ) )
         {
           const int count = std::min( mFilterComboBoxes.count(), mFilterFields.count() );
@@ -899,8 +897,8 @@ void QgsRelationReferenceWidget::addEntry()
     QString title = tr( "Relation %1 for %2." ).arg( mRelation.name(), mReferencingLayer->name() );
 
     QString displayString = QgsVectorLayerUtils::getFeatureDisplayString( mReferencingLayer, mComboBox->formFeature() );
-    QString msg = tr( "Link feature to %1 \"%2\" : Digitize the geometry for the new feature on layer %3. Press &lt;ESC&gt; to cancel." )
-                    .arg( mReferencingLayer->name(), displayString, mReferencedLayer->name() );
+    QString msg
+      = tr( "Link feature to %1 \"%2\" : Digitize the geometry for the new feature on layer %3. Press &lt;ESC&gt; to cancel." ).arg( mReferencingLayer->name(), displayString, mReferencedLayer->name() );
     mMessageBarItem = QgsMessageBar::createMessage( title, msg, this );
     mMessageBar->pushItem( mMessageBarItem );
   }

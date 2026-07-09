@@ -1,4 +1,6 @@
 set(QGIS_GUI_SRCS
+  3d/qgsmaterialwidget.cpp
+
   actions/qgsactionmenu.cpp
   actions/qgsmaplayeraction.cpp
   actions/qgsmaplayeractioncontext.cpp
@@ -367,11 +369,15 @@ set(QGIS_GUI_SRCS
 
   maptools/qgsmaptooledit.cpp
   maptools/qgsmaptooleditblanksegments.cpp
+  maptools/qgsmaptoolextraitem.cpp
   maptools/qgsmaptoolemitpoint.cpp
   maptools/qgsmaptoolextent.cpp
   maptools/qgsmaptoolidentify.cpp
   maptools/qgsmaptoolidentifyfeature.cpp
   maptools/qgsmaptoolpan.cpp
+  maptools/qgsmaptoolselect.cpp
+  maptools/qgsmaptoolselectionhandler.cpp
+  maptools/qgsmaptoolselectutils.cpp
   maptools/qgsmaptoolshapeabstract.cpp
   maptools/qgsmaptoolshaperegistry.cpp
   maptools/qgsmaptoolzoom.cpp
@@ -420,7 +426,7 @@ set(QGIS_GUI_SRCS
   processing/qgsprocessingaggregatewidgets.cpp
   processing/qgsprocessingaggregatewidgetwrapper.cpp
   processing/qgsprocessingalgorithmconfigurationwidget.cpp
-  processing/qgsprocessingalgorithmdialogbase.cpp
+  processing/qgsprocessingalgorithmwidgetbase.cpp
   processing/qgsprocessingalignrasterlayerswidgetwrapper.cpp
   processing/qgsprocessingbatchalgorithmdialogbase.cpp
   processing/qgsprocessingconfigurationwidgets.cpp
@@ -756,6 +762,7 @@ set(QGIS_GUI_SRCS
   qgspanelwidgetstack.cpp
   qgspasswordlineedit.cpp
   qgspercentagewidget.cpp
+  qgspersistentmenu.cpp
   qgspixmaplabel.cpp
   qgsplaybackcontrollerwidget.cpp
   qgspluginmanagerinterface.cpp
@@ -1030,6 +1037,7 @@ set(QGIS_GUI_HDRS
   qgspanelwidgetstack.h
   qgspasswordlineedit.h
   qgspercentagewidget.h
+  qgspersistentmenu.h
   qgspixmaplabel.h
   qgsplaybackcontrollerwidget.h
   qgspluginmanagerinterface.h
@@ -1108,6 +1116,8 @@ set(QGIS_GUI_HDRS
   qgsvertexmarker.h
   qgsvscrollarea.h
   qgswindowmanagerinterface.h
+
+  3d/qgsmaterialwidget.h
 
   actions/qgsactionmenu.h
   actions/qgsmaplayeraction.h
@@ -1388,11 +1398,15 @@ set(QGIS_GUI_HDRS
   maptools/qgsmaptooldigitizefeature.h
   maptools/qgsmaptooledit.h
   maptools/qgsmaptooleditblanksegments.h
+  maptools/qgsmaptoolextraitem.h
   maptools/qgsmaptoolemitpoint.h
   maptools/qgsmaptoolextent.h
   maptools/qgsmaptoolidentify.h
   maptools/qgsmaptoolidentifyfeature.h
   maptools/qgsmaptoolpan.h
+  maptools/qgsmaptoolselect.h
+  maptools/qgsmaptoolselectionhandler.h
+  maptools/qgsmaptoolselectutils.h
   maptools/qgsmaptoolshapeabstract.h
   maptools/qgsmaptoolshaperegistry.h
   maptools/qgsmaptoolzoom.h
@@ -1441,7 +1455,7 @@ set(QGIS_GUI_HDRS
   processing/qgsprocessingaggregatewidgets.h
   processing/qgsprocessingaggregatewidgetwrapper.h
   processing/qgsprocessingalgorithmconfigurationwidget.h
-  processing/qgsprocessingalgorithmdialogbase.h
+  processing/qgsprocessingalgorithmwidgetbase.h
   processing/qgsprocessingbatchalgorithmdialogbase.h
   processing/qgsprocessingconfigurationwidgets.h
   processing/qgsprocessingdxflayerswidgetwrapper.h
@@ -1635,6 +1649,7 @@ set(QGIS_GUI_HDRS
   symbology/qgssymbolselectordialog.h
   symbology/qgssymbolslistwidget.h
   symbology/qgssymbolwidgetcontext.h
+  symbology/qgstemplatedcategorizedrendererwidget_p.h
   symbology/qgsvectorfieldsymbollayerwidget.h
 
   sensor/qgssensorguiregistry.h
@@ -1925,6 +1940,7 @@ target_include_directories(qgis_gui SYSTEM PUBLIC
 
 target_include_directories(qgis_gui PUBLIC
   ${CMAKE_SOURCE_DIR}/src/gui
+  ${CMAKE_SOURCE_DIR}/src/gui/3d
   ${CMAKE_SOURCE_DIR}/src/gui/actions
   ${CMAKE_SOURCE_DIR}/src/gui/annotations
   ${CMAKE_SOURCE_DIR}/src/gui/attributeformconfig

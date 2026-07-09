@@ -153,10 +153,10 @@ struct QgsPostgresLayerProperty
         sridString += QString::number( srid );
       }
 
-      return u"%1.%2.%3 type=%4 srid=%5 pkCols=%6 sql=%7 nSpCols=%8"_s
-        .arg( schemaName, tableName, geometryColName, typeString, sridString, pkCols.join( '|'_L1 ), sql )
-        .arg( nSpCols );
+      return u"%1.%2.%3 type=%4 srid=%5 pkCols=%6 sql=%7 nSpCols=%8"_s.arg( schemaName, tableName, geometryColName, typeString, sridString, pkCols.join( '|'_L1 ), sql ).arg( nSpCols );
     }
+#else
+    inline QString toString() const { return QString(); }
 #endif
 };
 
@@ -164,7 +164,8 @@ class QgsPostgresResult
 {
   public:
     explicit QgsPostgresResult( PGresult *result = nullptr )
-      : mRes( result ) {}
+      : mRes( result )
+    {}
     ~QgsPostgresResult();
 
     QgsPostgresResult &operator=( PGresult *result );
@@ -199,10 +200,7 @@ struct PGException
       : mWhat( r.PQresultErrorMessage() )
     {}
 
-    QString errorMessage() const
-    {
-      return mWhat;
-    }
+    QString errorMessage() const { return mWhat; }
 
   private:
     QString mWhat;
@@ -384,7 +382,9 @@ class QgsPostgresConn : public QObject
      * \param schema restrict layers to layers within specified schema
      * \returns true if layers were fetched successfully
      */
-    bool supportedLayers( QVector<QgsPostgresLayerProperty> &layers, bool searchGeometryColumnsOnly = true, bool allowGeometrylessTables = false, bool allowRasterOverviewTables = false, const QString &schema = QString() );
+    bool supportedLayers(
+      QVector<QgsPostgresLayerProperty> &layers, bool searchGeometryColumnsOnly = true, bool allowGeometrylessTables = false, bool allowRasterOverviewTables = false, const QString &schema = QString()
+    );
 
     /**
      * Get the information about a supported layer
@@ -561,7 +561,14 @@ class QgsPostgresConn : public QObject
      * \param table restrict tables to those with specified table
      * \returns true if layers were fetched successfully
      */
-    bool supportedLayersPrivate( QVector<QgsPostgresLayerProperty> &layers, bool searchGeometryColumnsOnly = true, bool allowGeometrylessTables = false, bool allowRasterOverviewTables = false, const QString &schema = QString(), const QString &table = QString() );
+    bool supportedLayersPrivate(
+      QVector<QgsPostgresLayerProperty> &layers,
+      bool searchGeometryColumnsOnly = true,
+      bool allowGeometrylessTables = false,
+      bool allowRasterOverviewTables = false,
+      const QString &schema = QString(),
+      const QString &table = QString()
+    );
 
     //! List of the supported layers
     QVector<QgsPostgresLayerProperty> mLayersSupported;

@@ -1,3 +1,4 @@
+
 /***************************************************************************
     qgsapplication.h - Accessors for application-wide data
      --------------------------------------
@@ -30,6 +31,7 @@
 #include <QStringList>
 
 class QgsSettingsRegistryCore;
+class QgsSettingsTreeNamedListNode;
 class Qgs3DRendererRegistry;
 class QgsActionScopeRegistry;
 class QgsAnnotationItemRegistry;
@@ -83,6 +85,8 @@ class QgsFontManager;
 class QgsSensorRegistry;
 class QgsProfileSourceRegistry;
 class QgsLabelingEngineRuleRegistry;
+class QgsSymbolConverterRegistry;
+class QgsMaterialRegistry;
 
 // clang-format off
 /**
@@ -175,6 +179,13 @@ class CORE_EXPORT QgsApplication : public QApplication
   static const char *QGIS_ORGANIZATION_DOMAIN;
   static const char *QGIS_APPLICATION_NAME;
 #ifndef SIP_RUN
+
+  static const QgsSettingsEntryString *settingsApplicationFullName SIP_SKIP;
+
+  static const QgsSettingsEntryStringList *settingsSkippedGdalDrivers SIP_SKIP;
+
+  static QgsSettingsTreeNamedListNode *sTreeCustomVariables SIP_SKIP;
+  static const QgsSettingsEntryVariant *settingsCustomVariable SIP_SKIP;
 
   /**
    * Constructor for QgsApplication.
@@ -507,7 +518,7 @@ class CORE_EXPORT QgsApplication : public QApplication
    * Returns the QGIS application full name.
    *
    * It can be defined by the environment variable QGIS_APPLICATION_FULL_NAME or
-   * the /qgis/application_full_name in the QGIS config file.
+   * the app/full-name setting in the QGIS config file.
    *
    * By default it is equal to applicationName()+' '+platform()
    *
@@ -593,8 +604,8 @@ class CORE_EXPORT QgsApplication : public QApplication
   //! Constants for endian-ness
   enum endian_t
   {
-    XDR = 0, // network, or big-endian, byte order
-    NDR = 1 // little-endian byte order
+    XDR = 0, //!< Network, or big-endian, byte order
+    NDR = 1 //!< Little-endian byte order
   };
   // clang-format on
 
@@ -1038,6 +1049,16 @@ class CORE_EXPORT QgsApplication : public QApplication
   static Qgs3DSymbolRegistry *symbol3DRegistry() SIP_KEEPREFERENCE;
 
   /**
+   * Returns registry of available 3D materials.
+   *
+   * \warning This is not considered stable API, and may change in future QGIS
+   * releases. It is exposed to the Python bindings as a tech preview only.
+   *
+   * \since QGIS 4.2
+   */
+  static QgsMaterialRegistry *materialRegistry() SIP_KEEPREFERENCE;
+
+  /**
    * Gets the registry of available scalebar renderers.
    *
    * \since QGIS 3.14
@@ -1052,6 +1073,14 @@ class CORE_EXPORT QgsApplication : public QApplication
    */
   static QgsLabelingEngineRuleRegistry *
   labelingEngineRuleRegistry() SIP_KEEPREFERENCE;
+
+  /**
+   * Gets the registry of available symbol converters.
+   *
+   * \since QGIS 4.2
+   */
+  static QgsSymbolConverterRegistry *
+  symbolConverterRegistry() SIP_KEEPREFERENCE;
 
   /**
    * Returns registry of available project storage implementations.
@@ -1216,6 +1245,8 @@ class CORE_EXPORT QgsApplication : public QApplication
    * \since QGIS 3.4
    */
   void collectTranslatableObjects(QgsTranslationContext *translationContext);
+
+  static const QgsSettingsEntryString *settingsNullRepresentation SIP_SKIP;
 
 #ifndef SIP_RUN
   //! Settings entry locale user locale

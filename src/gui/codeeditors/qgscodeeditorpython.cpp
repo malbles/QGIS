@@ -42,22 +42,20 @@
 
 using namespace Qt::StringLiterals;
 
-const QMap<QString, QString> QgsCodeEditorPython::sCompletionPairs {
-  { "(", ")" },
-  { "[", "]" },
-  { "{", "}" },
-  { "'", "'" },
-  { "\"", "\"" }
-};
+const QMap<QString, QString> QgsCodeEditorPython::sCompletionPairs { { "(", ")" }, { "[", "]" }, { "{", "}" }, { "'", "'" }, { "\"", "\"" } };
 const QStringList QgsCodeEditorPython::sCompletionSingleCharacters { "`", "*" };
 ///@cond PRIVATE
 const QgsSettingsEntryString *QgsCodeEditorPython::settingCodeFormatter = new QgsSettingsEntryString( u"formatter"_s, sTreePythonCodeEditor, u"autopep8"_s, u"Python code autoformatter"_s );
 const QgsSettingsEntryInteger *QgsCodeEditorPython::settingMaxLineLength = new QgsSettingsEntryInteger( u"max-line-length"_s, sTreePythonCodeEditor, 80, u"Maximum line length"_s );
-const QgsSettingsEntryBool *QgsCodeEditorPython::settingSortImports = new QgsSettingsEntryBool( u"sort-imports"_s, sTreePythonCodeEditor, true, u"Whether imports should be sorted when auto-formatting code"_s );
+const QgsSettingsEntryBool *QgsCodeEditorPython::settingSortImports
+  = new QgsSettingsEntryBool( u"sort-imports"_s, sTreePythonCodeEditor, true, u"Whether imports should be sorted when auto-formatting code"_s );
 const QgsSettingsEntryInteger *QgsCodeEditorPython::settingAutopep8Level = new QgsSettingsEntryInteger( u"autopep8-level"_s, sTreePythonCodeEditor, 1, u"Autopep8 aggressive level"_s );
-const QgsSettingsEntryBool *QgsCodeEditorPython::settingBlackNormalizeQuotes = new QgsSettingsEntryBool( u"black-normalize-quotes"_s, sTreePythonCodeEditor, true, u"Whether quotes should be normalized when auto-formatting code using black"_s );
-const QgsSettingsEntryString *QgsCodeEditorPython::settingExternalPythonEditorCommand = new QgsSettingsEntryString( u"external-editor"_s, sTreePythonCodeEditor, QString(), u"Command to launch an external Python code editor. Use the token <file> to insert the filename, <line> to insert line number, and <col> to insert the column number."_s );
-const QgsSettingsEntryEnumFlag<Qgis::DocumentationBrowser> *QgsCodeEditorPython::settingContextHelpBrowser = new QgsSettingsEntryEnumFlag<Qgis::DocumentationBrowser>( u"context-help-browser"_s, sTreePythonCodeEditor, Qgis::DocumentationBrowser::DeveloperToolsPanel, u"Web browser used to display the api documentation"_s );
+const QgsSettingsEntryBool *QgsCodeEditorPython::settingBlackNormalizeQuotes
+  = new QgsSettingsEntryBool( u"black-normalize-quotes"_s, sTreePythonCodeEditor, true, u"Whether quotes should be normalized when auto-formatting code using black"_s );
+const QgsSettingsEntryString *QgsCodeEditorPython::settingExternalPythonEditorCommand
+  = new QgsSettingsEntryString( u"external-editor"_s, sTreePythonCodeEditor, QString(), u"Command to launch an external Python code editor. Use the token <file> to insert the filename, <line> to insert line number, and <col> to insert the column number."_s );
+const QgsSettingsEntryEnumFlag<Qgis::DocumentationBrowser> *QgsCodeEditorPython::settingContextHelpBrowser = new QgsSettingsEntryEnumFlag<
+  Qgis::DocumentationBrowser>( u"context-help-browser"_s, sTreePythonCodeEditor, Qgis::DocumentationBrowser::DeveloperToolsPanel, u"Web browser used to display the api documentation"_s );
 ///@endcond PRIVATE
 
 
@@ -141,9 +139,42 @@ void QgsCodeEditorPython::initializeLexer()
   pyLexer->setColor( lexerColor( QgsCodeEditorColorScheme::ColorRole::TripleSingleQuote ), QsciLexerPython::TripleSingleQuotedString );
   pyLexer->setColor( lexerColor( QgsCodeEditorColorScheme::ColorRole::TripleDoubleQuote ), QsciLexerPython::TripleDoubleQuotedString );
 
-  auto apis = std::make_unique<QsciAPIs>( pyLexer );
+  setLexer( pyLexer );
 
   QgsSettings settings;
+  const int threshold = settings.value( u"pythonConsole/autoCompThreshold"_s, 2 ).toInt();
+  setAutoCompletionThreshold( threshold );
+  if ( !settings.value( "pythonConsole/autoCompleteEnabled", true ).toBool() )
+  {
+    setAutoCompletionSource( AcsNone );
+  }
+  else
+  {
+    const QString autoCompleteSource = settings.value( u"pythonConsole/autoCompleteSource"_s, u"fromAPI"_s ).toString();
+    if ( autoCompleteSource == "fromDoc"_L1 )
+      setAutoCompletionSource( AcsDocument );
+    else if ( autoCompleteSource == "fromDocAPI"_L1 )
+      setAutoCompletionSource( AcsAll );
+    else
+      setAutoCompletionSource( AcsAPIs );
+  }
+
+  setLineNumbersVisible( true );
+  setIndentationsUseTabs( false );
+  setIndentationGuides( true );
+
+  runPostLexerConfigurationTasks();
+
+  mInitializedLexer = false;
+  if ( isVisible() )
+    deferredInitializeLexer();
+}
+
+void QgsCodeEditorPython::deferredInitializeLexer()
+{
+  QgsSettings settings;
+  auto apis = std::make_unique<QsciAPIs>( lexer() );
+
   if ( mAPISFilesList.isEmpty() )
   {
     if ( settings.value( u"pythonConsole/preloadAPI"_s, true ).toBool() )
@@ -197,32 +228,9 @@ void QgsCodeEditorPython::initializeLexer()
     }
     apis->prepare();
   }
-  pyLexer->setAPIs( apis.release() );
+  lexer()->setAPIs( apis.release() );
 
-  setLexer( pyLexer );
-
-  const int threshold = settings.value( u"pythonConsole/autoCompThreshold"_s, 2 ).toInt();
-  setAutoCompletionThreshold( threshold );
-  if ( !settings.value( "pythonConsole/autoCompleteEnabled", true ).toBool() )
-  {
-    setAutoCompletionSource( AcsNone );
-  }
-  else
-  {
-    const QString autoCompleteSource = settings.value( u"pythonConsole/autoCompleteSource"_s, u"fromAPI"_s ).toString();
-    if ( autoCompleteSource == "fromDoc"_L1 )
-      setAutoCompletionSource( AcsDocument );
-    else if ( autoCompleteSource == "fromDocAPI"_L1 )
-      setAutoCompletionSource( AcsAll );
-    else
-      setAutoCompletionSource( AcsAPIs );
-  }
-
-  setLineNumbersVisible( true );
-  setIndentationsUseTabs( false );
-  setIndentationGuides( true );
-
-  runPostLexerConfigurationTasks();
+  mInitializedLexer = true;
 }
 
 void QgsCodeEditorPython::keyPressEvent( QKeyEvent *event )
@@ -256,16 +264,12 @@ void QgsCodeEditorPython::keyPressEvent( QKeyEvent *event )
       // Special case for Multi line quotes (insert triple quotes)
       if ( startLine != endLine && ( eText == "\"" || eText == "'" ) )
       {
-        replaceSelectedText(
-          QString( "%1%1%1%2%3%3%3" ).arg( eText, selectedText(), sCompletionPairs[eText] )
-        );
+        replaceSelectedText( QString( "%1%1%1%2%3%3%3" ).arg( eText, selectedText(), sCompletionPairs[eText] ) );
         setSelection( startLine, startPos + 3, endLine, endPos + 3 );
       }
       else
       {
-        replaceSelectedText(
-          QString( "%1%2%3" ).arg( eText, selectedText(), sCompletionPairs[eText] )
-        );
+        replaceSelectedText( QString( "%1%2%3" ).arg( eText, selectedText(), sCompletionPairs[eText] ) );
         setSelection( startLine, startPos + 1, endLine, endPos + 1 );
       }
       event->accept();
@@ -275,9 +279,7 @@ void QgsCodeEditorPython::keyPressEvent( QKeyEvent *event )
     {
       int startLine, startPos, endLine, endPos;
       getSelection( &startLine, &startPos, &endLine, &endPos );
-      replaceSelectedText(
-        QString( "%1%2%1" ).arg( eText, selectedText() )
-      );
+      replaceSelectedText( QString( "%1%2%1" ).arg( eText, selectedText() ) );
       setSelection( startLine, startPos + 1, endLine, endPos + 1 );
       event->accept();
       return;
@@ -356,6 +358,15 @@ void QgsCodeEditorPython::keyPressEvent( QKeyEvent *event )
 
   // Let QgsCodeEditor handle the keyboard event
   return QgsCodeEditor::keyPressEvent( event );
+}
+
+void QgsCodeEditorPython::showEvent( QShowEvent *event )
+{
+  if ( !mInitializedLexer )
+  {
+    deferredInitializeLexer();
+  }
+  QgsCodeEditor::showEvent( event );
 }
 
 QString QgsCodeEditorPython::reformatCodeString( const QString &string )
@@ -531,11 +542,7 @@ void QgsCodeEditorPython::populateContextMenu( QMenu *menu )
     return;
   }
 
-  QAction *pyQgisHelpAction = new QAction(
-    QgsApplication::getThemeIcon( u"console/iconHelpConsole.svg"_s ),
-    tr( "Search Selection in PyQGIS Documentation" ),
-    menu
-  );
+  QAction *pyQgisHelpAction = new QAction( QgsApplication::getThemeIcon( u"console/iconHelpConsole.svg"_s ), tr( "Search Selection in PyQGIS Documentation" ), menu );
 
   pyQgisHelpAction->setEnabled( hasSelectedText() );
   pyQgisHelpAction->setShortcut( QKeySequence::StandardKey::HelpContents );
@@ -760,8 +767,7 @@ void QgsCodeEditorPython::toggleComment()
 //
 QgsQsciLexerPython::QgsQsciLexerPython( QObject *parent )
   : QsciLexerPython( parent )
-{
-}
+{}
 
 const char *QgsQsciLexerPython::keywords( int set ) const
 {

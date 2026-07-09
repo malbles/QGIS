@@ -42,14 +42,10 @@ class TestTransformer : public QgsPropertyTransformer
   public:
     TestTransformer( double minValue, double maxValue )
       : QgsPropertyTransformer( minValue, maxValue )
-    {
-    }
+    {}
 
     Type transformerType() const override { return SizeScaleTransformer; }
-    TestTransformer *clone() const override
-    {
-      return new TestTransformer( mMinValue, mMaxValue );
-    }
+    TestTransformer *clone() const override { return new TestTransformer( mMinValue, mMaxValue ); }
     QString toExpression( const QString & ) const override { return QString(); }
 
   private:
@@ -96,6 +92,8 @@ class TestQgsProperty : public QObject
     void asVariant();
     void isProjectColor();
     void referencedFieldsIgnoreContext();
+    void referencedVariables();
+    void collectionReferencedVariables();
     void mapToMap();
 
   private:
@@ -119,12 +117,10 @@ void TestQgsProperty::cleanupTestCase()
 }
 
 void TestQgsProperty::init()
-{
-}
+{}
 
 void TestQgsProperty::cleanup()
-{
-}
+{}
 
 void TestQgsProperty::conversions()
 {
@@ -364,9 +360,7 @@ void TestQgsProperty::staticProperty()
 
   //create a test dom element
   QDomImplementation DomImplementation;
-  const QDomDocumentType documentType = DomImplementation.createDocumentType(
-    u"qgis"_s, u"http://mrcc.com/qgis.dtd"_s, u"SYSTEM"_s
-  );
+  const QDomDocumentType documentType = DomImplementation.createDocumentType( u"qgis"_s, u"http://mrcc.com/qgis.dtd"_s, u"SYSTEM"_s );
   const QDomDocument doc( documentType );
 
   QgsProperty p1;
@@ -480,9 +474,7 @@ void TestQgsProperty::fieldBasedProperty()
 
   //create a test dom element
   QDomImplementation DomImplementation;
-  const QDomDocumentType documentType = DomImplementation.createDocumentType(
-    u"qgis"_s, u"http://mrcc.com/qgis.dtd"_s, u"SYSTEM"_s
-  );
+  const QDomDocumentType documentType = DomImplementation.createDocumentType( u"qgis"_s, u"http://mrcc.com/qgis.dtd"_s, u"SYSTEM"_s );
   const QDomDocument doc( documentType );
 
   QgsProperty p1;
@@ -589,9 +581,7 @@ void TestQgsProperty::expressionBasedProperty()
 
   //create a test dom element
   QDomImplementation DomImplementation;
-  const QDomDocumentType documentType = DomImplementation.createDocumentType(
-    u"qgis"_s, u"http://mrcc.com/qgis.dtd"_s, u"SYSTEM"_s
-  );
+  const QDomDocumentType documentType = DomImplementation.createDocumentType( u"qgis"_s, u"http://mrcc.com/qgis.dtd"_s, u"SYSTEM"_s );
   const QDomDocument doc( documentType );
 
   QgsProperty p1;
@@ -745,9 +735,7 @@ void TestQgsProperty::propertyTransformer()
 
   //create a test dom element
   QDomImplementation DomImplementation;
-  const QDomDocumentType documentType = DomImplementation.createDocumentType(
-    u"qgis"_s, u"http://mrcc.com/qgis.dtd"_s, u"SYSTEM"_s
-  );
+  const QDomDocumentType documentType = DomImplementation.createDocumentType( u"qgis"_s, u"http://mrcc.com/qgis.dtd"_s, u"SYSTEM"_s );
   const QDomDocument doc( documentType );
 
   const TestTransformer t1( -5, 6 );
@@ -861,9 +849,7 @@ void TestQgsProperty::genericNumericTransformer()
 
   //create a test dom element
   QDomImplementation DomImplementation;
-  const QDomDocumentType documentType = DomImplementation.createDocumentType(
-    u"qgis"_s, u"http://mrcc.com/qgis.dtd"_s, u"SYSTEM"_s
-  );
+  const QDomDocumentType documentType = DomImplementation.createDocumentType( u"qgis"_s, u"http://mrcc.com/qgis.dtd"_s, u"SYSTEM"_s );
   const QDomDocument doc( documentType );
 
   QgsGenericNumericTransformer t2( 15, 25, 150, 250, -10, 99 );
@@ -1047,9 +1033,7 @@ void TestQgsProperty::sizeScaleTransformer()
 
   //create a test dom element
   QDomImplementation DomImplementation;
-  const QDomDocumentType documentType = DomImplementation.createDocumentType(
-    u"qgis"_s, u"http://mrcc.com/qgis.dtd"_s, u"SYSTEM"_s
-  );
+  const QDomDocumentType documentType = DomImplementation.createDocumentType( u"qgis"_s, u"http://mrcc.com/qgis.dtd"_s, u"SYSTEM"_s );
   const QDomDocument doc( documentType );
 
   QgsSizeScaleTransformer t1( QgsSizeScaleTransformer::Exponential, 15, 25, 150, 250, -10, 99 );
@@ -1284,9 +1268,7 @@ void TestQgsProperty::colorRampTransformer()
 
   //create a test dom element
   QDomImplementation DomImplementation;
-  const QDomDocumentType documentType = DomImplementation.createDocumentType(
-    u"qgis"_s, u"http://mrcc.com/qgis.dtd"_s, u"SYSTEM"_s
-  );
+  const QDomDocumentType documentType = DomImplementation.createDocumentType( u"qgis"_s, u"http://mrcc.com/qgis.dtd"_s, u"SYSTEM"_s );
   const QDomDocument doc( documentType );
 
   QgsColorRampTransformer t1( 15, 25, new QgsGradientColorRamp( QColor( 10, 20, 30 ), QColor( 200, 190, 180 ) ), QColor( 100, 150, 200 ) );
@@ -1537,9 +1519,7 @@ void TestQgsProperty::propertyCollection()
   //saving and restoring
 
   QDomImplementation DomImplementation;
-  const QDomDocumentType documentType = DomImplementation.createDocumentType(
-    u"qgis"_s, u"http://mrcc.com/qgis.dtd"_s, u"SYSTEM"_s
-  );
+  const QDomDocumentType documentType = DomImplementation.createDocumentType( u"qgis"_s, u"http://mrcc.com/qgis.dtd"_s, u"SYSTEM"_s );
   const QDomDocument doc( documentType );
   const QVariant collectionElement = collection.toVariant( mDefinitions );
 
@@ -1822,13 +1802,25 @@ void TestQgsProperty::curveTransform()
   checkCurveResult( QList<QgsPointXY>() << QgsPointXY( 0, 0.0 ) << QgsPointXY( 0.2, 0.2 ) << QgsPointXY( 1.0, 1.0 ), QVector<double>() << -1 << 0 << 0.2 << 0.5 << 0.8 << 1 << 2, QVector<double>() << 0.0 << 0.0 << 0.2 << 0.5 << 0.8 << 1.0 << 1.0 );
 
   // test for "flat" response for x outside of control point range
-  checkCurveResult( QList<QgsPointXY>() << QgsPointXY( 0.2, 0.2 ) << QgsPointXY( 0.5, 0.5 ) << QgsPointXY( 0.8, 0.8 ), QVector<double>() << -1 << 0 << 0.1 << 0.2 << 0.5 << 0.8 << 0.9 << 1 << 2, QVector<double>() << 0.2 << 0.2 << 0.2 << 0.2 << 0.5 << 0.8 << 0.8 << 0.8 << 0.8 );
+  checkCurveResult(
+    QList<QgsPointXY>() << QgsPointXY( 0.2, 0.2 ) << QgsPointXY( 0.5, 0.5 ) << QgsPointXY( 0.8, 0.8 ),
+    QVector<double>() << -1 << 0 << 0.1 << 0.2 << 0.5 << 0.8 << 0.9 << 1 << 2,
+    QVector<double>() << 0.2 << 0.2 << 0.2 << 0.2 << 0.5 << 0.8 << 0.8 << 0.8 << 0.8
+  );
 
   //curves!
-  checkCurveResult( QList<QgsPointXY>() << QgsPointXY( 0.0, 0.0 ) << QgsPointXY( 0.4, 0.6 ) << QgsPointXY( 0.6, 0.8 ) << QgsPointXY( 1.0, 1.0 ), QVector<double>() << -1 << 0 << 0.2 << 0.4 << 0.5 << 0.6 << 0.8 << 0.9 << 1.0 << 2.0, QVector<double>() << 0.0 << 0.0 << 0.321429 << 0.6 << 0.710714 << 0.8 << 0.921429 << 0.963393 << 1.0 << 1.0 );
+  checkCurveResult(
+    QList<QgsPointXY>() << QgsPointXY( 0.0, 0.0 ) << QgsPointXY( 0.4, 0.6 ) << QgsPointXY( 0.6, 0.8 ) << QgsPointXY( 1.0, 1.0 ),
+    QVector<double>() << -1 << 0 << 0.2 << 0.4 << 0.5 << 0.6 << 0.8 << 0.9 << 1.0 << 2.0,
+    QVector<double>() << 0.0 << 0.0 << 0.321429 << 0.6 << 0.710714 << 0.8 << 0.921429 << 0.963393 << 1.0 << 1.0
+  );
 
   //curves with more control points
-  checkCurveResult( QList<QgsPointXY>() << QgsPointXY( 0.0, 0.0 ) << QgsPointXY( 0.2, 0.6 ) << QgsPointXY( 0.4, 0.6 ) << QgsPointXY( 0.6, 0.8 ) << QgsPointXY( 0.8, 0.3 ) << QgsPointXY( 1.0, 1.0 ), QVector<double>() << -1 << 0 << 0.2 << 0.4 << 0.5 << 0.6 << 0.8 << 0.9 << 1.0 << 2.0, QVector<double>() << 0.0 << 0.0 << 0.6 << 0.6 << 0.751316 << 0.8 << 0.3 << 0.508074 << 1.0 << 1.0 );
+  checkCurveResult(
+    QList<QgsPointXY>() << QgsPointXY( 0.0, 0.0 ) << QgsPointXY( 0.2, 0.6 ) << QgsPointXY( 0.4, 0.6 ) << QgsPointXY( 0.6, 0.8 ) << QgsPointXY( 0.8, 0.3 ) << QgsPointXY( 1.0, 1.0 ),
+    QVector<double>() << -1 << 0 << 0.2 << 0.4 << 0.5 << 0.6 << 0.8 << 0.9 << 1.0 << 2.0,
+    QVector<double>() << 0.0 << 0.0 << 0.6 << 0.6 << 0.751316 << 0.8 << 0.3 << 0.508074 << 1.0 << 1.0
+  );
 
   // general tests
   QList<QgsPointXY> points = QList<QgsPointXY>() << QgsPointXY( 0.0, 0.0 ) << QgsPointXY( 0.4, 0.6 ) << QgsPointXY( 0.6, 0.8 ) << QgsPointXY( 1.0, 1.0 );
@@ -1865,9 +1857,7 @@ void TestQgsProperty::curveTransform()
 
   // writing and reading from xml
   QDomImplementation DomImplementation;
-  const QDomDocumentType documentType = DomImplementation.createDocumentType(
-    u"qgis"_s, u"http://mrcc.com/qgis.dtd"_s, u"SYSTEM"_s
-  );
+  const QDomDocumentType documentType = DomImplementation.createDocumentType( u"qgis"_s, u"http://mrcc.com/qgis.dtd"_s, u"SYSTEM"_s );
   QDomDocument doc( documentType );
 
   QDomElement element = doc.createElement( u"xform"_s );
@@ -1934,6 +1924,62 @@ void TestQgsProperty::referencedFieldsIgnoreContext()
 
   QCOMPARE( collection.referencedFields( QgsExpressionContext() ), QSet<QString>() << u"boo"_s );
   QCOMPARE( collection.referencedFields( QgsExpressionContext(), true ), QSet<QString>() << u"boo"_s << u"foo"_s << u"bar"_s );
+}
+
+void TestQgsProperty::referencedVariables()
+{
+  // expression with vars
+  QgsProperty p = QgsProperty::fromExpression( u"@var1 + @var2"_s );
+  QCOMPARE( p.referencedVariables(), QSet<QString>() << u"var1"_s << u"var2"_s );
+
+  // single var
+  p.setExpressionString( u"@scale"_s );
+  QCOMPARE( p.referencedVariables(), QSet<QString>() << u"scale"_s );
+
+  // no vars
+  p.setExpressionString( u"1 + 1"_s );
+  QVERIFY( p.referencedVariables().isEmpty() );
+  p.setExpressionString( u"\"notavar\" + 1"_s );
+  QVERIFY( p.referencedVariables().isEmpty() );
+
+  // inactive property returns empty set
+  p.setExpressionString( u"@var"_s );
+  p.setActive( false );
+  QVERIFY( p.referencedVariables().isEmpty() );
+  p.setActive( true );
+  QCOMPARE( p.referencedVariables(), QSet<QString>() << u"var"_s );
+
+  // non-expression property returns empty set
+  const QgsProperty staticProp = QgsProperty::fromValue( u"test"_s, true );
+  QCOMPARE( staticProp.propertyType(), Qgis::PropertyType::Static );
+  QVERIFY( staticProp.referencedVariables().isEmpty() );
+
+  const QgsProperty fieldProp = QgsProperty::fromField( u"field"_s, true );
+  QCOMPARE( fieldProp.propertyType(), Qgis::PropertyType::Field );
+  QVERIFY( fieldProp.referencedVariables().isEmpty() );
+}
+
+void TestQgsProperty::collectionReferencedVariables()
+{
+  QgsPropertyCollection collection;
+
+  // fresh empty collection
+  QVERIFY( collection.referencedVariables().isEmpty() );
+
+  // active vars
+  collection.setProperty( PropertyKeys::Property1, QgsProperty::fromExpression( u"@var1 + @var2"_s, true ) );
+  QCOMPARE( collection.referencedVariables(), QSet<QString>() << u"var1"_s << u"var2"_s );
+
+  // inactive var
+  collection.setProperty( PropertyKeys::Property2, QgsProperty::fromExpression( u"@var"_s, false ) );
+  QVERIFY( !collection.referencedVariables().contains( u"var"_s ) );
+  QCOMPARE( collection.referencedVariables(), QSet<QString>() << u"var1"_s << u"var2"_s );
+
+  // test non expresesion
+  collection.setProperty( PropertyKeys::Property3, QgsProperty::fromValue( "test", true ) );
+  QCOMPARE( collection.referencedVariables(), QSet<QString>() << u"var1"_s << u"var2"_s );
+  collection.setProperty( PropertyKeys::Property4, QgsProperty::fromField( u"my_field"_s, true ) );
+  QCOMPARE( collection.referencedVariables(), QSet<QString>() << u"var1"_s << u"var2"_s );
 }
 
 void TestQgsProperty::checkCurveResult( const QList<QgsPointXY> &controlPoints, const QVector<double> &x, const QVector<double> &y )

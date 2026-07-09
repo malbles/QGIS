@@ -39,7 +39,7 @@ bool operator==( const QgsGeometry &g1, const QgsGeometry &g2 )
   if ( g1.isNull() && g2.isNull() )
     return true;
   else
-    return g1.equals( g2 );
+    return g1.isExactlyEqual( g2 );
 }
 
 namespace QTest
@@ -87,10 +87,6 @@ void TestQgsMapToolAddFeatureLineZM::initTestCase()
   QgsApplication::init();
   QgsApplication::initQgis();
 
-  // Set up the QSettings environment
-  QCoreApplication::setOrganizationName( u"QGIS"_s );
-  QCoreApplication::setOrganizationDomain( u"qgis.org"_s );
-  QCoreApplication::setApplicationName( u"QGIS-TEST"_s );
   QgsSettings settings;
   settings.clear();
 

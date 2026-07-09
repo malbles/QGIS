@@ -54,11 +54,6 @@ TestQgisAppWidgetNames::TestQgisAppWidgetNames()
 //runs before all tests
 void TestQgisAppWidgetNames::initTestCase()
 {
-  // Set up the QgsSettings environment
-  QCoreApplication::setOrganizationName( u"QGIS"_s );
-  QCoreApplication::setOrganizationDomain( u"qgis.org"_s );
-  QCoreApplication::setApplicationName( u"QGIS-TEST"_s );
-
   mQgisApp = new QgisApp( new QSplashScreen() );
 }
 
@@ -70,12 +65,10 @@ void TestQgisAppWidgetNames::cleanupTestCase()
 }
 
 void TestQgisAppWidgetNames::init()
-{
-}
+{}
 
 void TestQgisAppWidgetNames::cleanup()
-{
-}
+{}
 
 void TestQgisAppWidgetNames::validWidgetNames()
 {
@@ -108,7 +101,10 @@ void TestQgisAppWidgetNames::validWidgetNames()
       }
       else
       {
-        QVERIFY2( action->isSeparator() || !action->objectName().isEmpty(), qPrintable( u"'%1' %2 has a %3 with no objectName"_s.arg( path ).arg( action->parent()->metaObject()->className() ).arg( action->metaObject()->className() ) ) );
+        QVERIFY2(
+          action->isSeparator() || !action->objectName().isEmpty(),
+          qPrintable( u"'%1' %2 has a %3 with no objectName"_s.arg( path ).arg( action->parent()->metaObject()->className() ).arg( action->metaObject()->className() ) )
+        );
       }
     }
   }

@@ -29,7 +29,9 @@ email                : nyall dot dawson at gmail dot com
 #include "qgsogrprovidermetadata.h"
 #include "qgsproviderregistry.h"
 #include "qgsprovidersublayerdetails.h"
-#include "qgssettings.h"
+#include "qgssettingsentryimpl.h"
+#include "qgssettingsregistrycore.h"
+#include "qgssettingstree.h"
 #include "qgssqlstatement.h"
 #include "qgsvariantutils.h"
 #include "qgsvectorfilewriter.h"
@@ -44,6 +46,8 @@ email                : nyall dot dawson at gmail dot com
 #include <QTextCodec>
 
 using namespace Qt::StringLiterals;
+
+const QgsSettingsEntryBool *QgsOgrProviderUtils::settingsWalForSqlite3 = new QgsSettingsEntryBool( u"wal"_s, QgsSettingsTree::sTreeSqlite3, true );
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -617,8 +621,7 @@ QString createFilters( const QString &type )
     //   see http://trac.osgeo.org/gdal/wiki/UserDocs/ReadInZip
     // Requires GDAL>=1.6.0 with libz support, let's assume we have it.
     // This does not work for some file types, see VSIFileHandler doc.
-    QgsSettings settings;
-    if ( settings.value( u"qgis/scanZipInBrowser2"_s, "basic" ).toString() != "no"_L1 )
+    if ( QgsSettingsRegistryCore::settingsScanZipInBrowser->value() != "no"_L1 )
     {
       sFileFilters.prepend( createFileFilter_( QObject::tr( "GDAL/OGR VSIFileHandler" ), u"*.zip *.gz *.tar *.tar.gz *.tgz"_s ) );
       sExtensions << u"zip"_s << u"gz"_s << u"tar"_s << u"tar.gz"_s << u"tgz"_s;
@@ -1002,7 +1005,7 @@ GDALDatasetH QgsOgrProviderUtils::GDALOpenWrapper( const char *pszPath, bool bUp
                             && IsLocalFile( filePath )
                             && !filePath.startsWith( "/vsizip/" )
                             && !CPLGetConfigOption( "OGR_SQLITE_JOURNAL", nullptr )
-                            && QgsSettings().value( u"qgis/walForSqlite3"_s, true ).toBool();
+                            && QgsOgrProviderUtils::settingsWalForSqlite3->value();
 
   if ( bIsGpkg )
   {

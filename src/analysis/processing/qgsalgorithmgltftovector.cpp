@@ -27,6 +27,7 @@
 #include "qgspolygon.h"
 #include "qgsvector3d.h"
 
+#include <QFileInfo>
 #include <QMatrix4x4>
 #include <QString>
 
@@ -81,7 +82,9 @@ QgsGltfToVectorFeaturesAlgorithm *QgsGltfToVectorFeaturesAlgorithm::createInstan
 
 void QgsGltfToVectorFeaturesAlgorithm::initAlgorithm( const QVariantMap & )
 {
-  addParameter( new QgsProcessingParameterFile( u"INPUT"_s, QObject::tr( "Input GLTF" ), Qgis::ProcessingFileParameterBehavior::File, u"gltf"_s, QVariant(), false, u"GLTF (*.gltf *.GLTF);;GLB (*.glb *.GLB)"_s ) );
+  addParameter(
+    new QgsProcessingParameterFile( u"INPUT"_s, QObject::tr( "Input GLTF" ), Qgis::ProcessingFileParameterBehavior::File, u"gltf"_s, QVariant(), false, u"GLTF (*.gltf *.GLTF);;GLB (*.glb *.GLB)"_s )
+  );
 
   addParameter( new QgsProcessingParameterFeatureSink( u"OUTPUT_POLYGONS"_s, QObject::tr( "Output polygons" ), Qgis::ProcessingSourceType::VectorPolygon, QVariant(), true, true ) );
   addParameter( new QgsProcessingParameterFeatureSink( u"OUTPUT_LINES"_s, QObject::tr( "Output lines" ), Qgis::ProcessingSourceType::VectorLine, QVariant(), true, true ) );
@@ -107,14 +110,7 @@ std::unique_ptr<QgsAbstractGeometry> extractTriangles(
   QVector<double> x;
   QVector<double> y;
   QVector<double> z;
-  QgsGltfUtils::accessorToMapCoordinates(
-    model, positionAccessorIndex, QgsMatrix4x4(),
-    &ecefTransform,
-    tileTranslationEcef,
-    gltfLocalTransform,
-    Qgis::Axis::Y,
-    x, y, z
-  );
+  QgsGltfUtils::accessorToMapCoordinates( model, positionAccessorIndex, QgsMatrix4x4(), &ecefTransform, tileTranslationEcef, gltfLocalTransform, Qgis::Axis::Y, x, y, z );
 
   auto mp = std::make_unique<QgsMultiPolygon>();
 
@@ -125,7 +121,9 @@ std::unique_ptr<QgsAbstractGeometry> extractTriangles(
     mp->reserve( x.size() );
     for ( int i = 0; i < x.size(); i += 3 )
     {
-      mp->addGeometry( new QgsPolygon( new QgsLineString( QVector<QgsPoint> { QgsPoint( x[i], y[i], z[i] ), QgsPoint( x[i + 1], y[i + 1], z[i + 1] ), QgsPoint( x[i + 2], y[i + 2], z[i + 2] ), QgsPoint( x[i], y[i], z[i] ) } ) ) );
+      mp->addGeometry( new QgsPolygon(
+        new QgsLineString( QVector<QgsPoint> { QgsPoint( x[i], y[i], z[i] ), QgsPoint( x[i + 1], y[i + 1], z[i + 1] ), QgsPoint( x[i + 2], y[i + 2], z[i + 2] ), QgsPoint( x[i], y[i], z[i] ) } )
+      ) );
     }
   }
   else
@@ -134,7 +132,12 @@ std::unique_ptr<QgsAbstractGeometry> extractTriangles(
     const tinygltf::BufferView &bvPrimitive = model.bufferViews[primitiveAccessor.bufferView];
     const tinygltf::Buffer &bPrimitive = model.buffers[bvPrimitive.buffer];
 
-    Q_ASSERT( ( primitiveAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT || primitiveAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT || primitiveAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE ) && primitiveAccessor.type == TINYGLTF_TYPE_SCALAR );
+    Q_ASSERT(
+      ( primitiveAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT
+        || primitiveAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT
+        || primitiveAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE )
+      && primitiveAccessor.type == TINYGLTF_TYPE_SCALAR
+    );
 
     const char *primitivePtr = reinterpret_cast<const char *>( bPrimitive.data.data() ) + bvPrimitive.byteOffset + primitiveAccessor.byteOffset;
 
@@ -182,7 +185,9 @@ std::unique_ptr<QgsAbstractGeometry> extractTriangles(
         index3 = uintPtrPrimitive[2];
       }
 
-      mp->addGeometry( new QgsPolygon( new QgsLineString( QVector<QgsPoint> { QgsPoint( x[index1], y[index1], z[index1] ), QgsPoint( x[index2], y[index2], z[index2] ), QgsPoint( x[index3], y[index3], z[index3] ), QgsPoint( x[index1], y[index1], z[index1] ) } ) ) );
+      mp->addGeometry( new QgsPolygon( new QgsLineString(
+        QVector<QgsPoint> { QgsPoint( x[index1], y[index1], z[index1] ), QgsPoint( x[index2], y[index2], z[index2] ), QgsPoint( x[index3], y[index3], z[index3] ), QgsPoint( x[index1], y[index1], z[index1] ) }
+      ) ) );
     }
   }
   return mp;
@@ -208,14 +213,7 @@ std::unique_ptr<QgsAbstractGeometry> extractLines(
   QVector<double> x;
   QVector<double> y;
   QVector<double> z;
-  QgsGltfUtils::accessorToMapCoordinates(
-    model, positionAccessorIndex, QgsMatrix4x4(),
-    &ecefTransform,
-    tileTranslationEcef,
-    gltfLocalTransform,
-    Qgis::Axis::Y,
-    x, y, z
-  );
+  QgsGltfUtils::accessorToMapCoordinates( model, positionAccessorIndex, QgsMatrix4x4(), &ecefTransform, tileTranslationEcef, gltfLocalTransform, Qgis::Axis::Y, x, y, z );
 
   auto ml = std::make_unique<QgsMultiLineString>();
 
@@ -235,7 +233,12 @@ std::unique_ptr<QgsAbstractGeometry> extractLines(
     const tinygltf::BufferView &bvPrimitive = model.bufferViews[primitiveAccessor.bufferView];
     const tinygltf::Buffer &bPrimitive = model.buffers[bvPrimitive.buffer];
 
-    Q_ASSERT( ( primitiveAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT || primitiveAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT || primitiveAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE ) && primitiveAccessor.type == TINYGLTF_TYPE_SCALAR );
+    Q_ASSERT(
+      ( primitiveAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT
+        || primitiveAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT
+        || primitiveAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE )
+      && primitiveAccessor.type == TINYGLTF_TYPE_SCALAR
+    );
 
     const char *primitivePtr = reinterpret_cast<const char *>( bPrimitive.data.data() ) + bvPrimitive.byteOffset + primitiveAccessor.byteOffset;
 
@@ -317,7 +320,7 @@ QVariantMap QgsGltfToVectorFeaturesAlgorithm::processAlgorithm( const QVariantMa
   tinygltf::Model model;
   QString errors;
   QString warnings;
-  if ( !QgsGltfUtils::loadGltfModel( fileContent, model, &errors, &warnings ) )
+  if ( !QgsGltfUtils::loadGltfModel( fileContent, model, &errors, &warnings, QFileInfo( path ).absolutePath() ) )
   {
     throw QgsProcessingException( QObject::tr( "Error loading GLTF model: %1" ).arg( errors ) );
   }
@@ -341,116 +344,121 @@ QVariantMap QgsGltfToVectorFeaturesAlgorithm::processAlgorithm( const QVariantMa
 
   const QgsVector3D tileTranslationEcef = QgsGltfUtils::extractTileTranslation( model );
   std::function<void( int nodeIndex, const QMatrix4x4 &transform )> traverseNode;
-  traverseNode = [&model, feedback, &polygonSink, &lineSink, &warnedPrimitiveTypes, &ecefTransform, &tileTranslationEcef, &traverseNode, &parameters]( int nodeIndex, const QMatrix4x4 &parentTransform ) {
-    const tinygltf::Node &gltfNode = model.nodes[nodeIndex];
-    std::unique_ptr<QMatrix4x4> gltfLocalTransform = QgsGltfUtils::parseNodeTransform( gltfNode );
-    if ( !parentTransform.isIdentity() )
-    {
-      if ( gltfLocalTransform )
-        *gltfLocalTransform = parentTransform * *gltfLocalTransform;
-      else
+  traverseNode =
+    [&model, feedback, &polygonSink, &lineSink, &warnedPrimitiveTypes, &ecefTransform, &tileTranslationEcef, &traverseNode, &parameters, polygonDest, lineDest]( int nodeIndex, const QMatrix4x4 &parentTransform ) {
+      const tinygltf::Node &gltfNode = model.nodes[nodeIndex];
+      std::unique_ptr<QMatrix4x4> gltfLocalTransform = QgsGltfUtils::parseNodeTransform( gltfNode );
+      if ( !parentTransform.isIdentity() )
       {
-        gltfLocalTransform = std::make_unique<QMatrix4x4>( parentTransform );
-      }
-    }
-
-    if ( gltfNode.mesh >= 0 )
-    {
-      const tinygltf::Mesh &mesh = model.meshes[gltfNode.mesh];
-      feedback->pushDebugInfo( QObject::tr( "Found %1 primitives in node [%2]" ).arg( mesh.primitives.size() ).arg( nodeIndex ) );
-
-      for ( const tinygltf::Primitive &primitive : mesh.primitives )
-      {
-        switch ( primitive.mode )
+        if ( gltfLocalTransform )
+          *gltfLocalTransform = parentTransform * *gltfLocalTransform;
+        else
         {
-          case TINYGLTF_MODE_TRIANGLES:
-          {
-            if ( polygonSink )
-            {
-              std::unique_ptr<QgsAbstractGeometry> geometry = extractTriangles( model, primitive, ecefTransform, tileTranslationEcef, gltfLocalTransform.get(), feedback );
-              if ( geometry )
-              {
-                QgsFeature f;
-                f.setGeometry( std::move( geometry ) );
-                if ( !polygonSink->addFeature( f, QgsFeatureSink::FastInsert ) )
-                  throw QgsProcessingException( writeFeatureError( polygonSink.get(), parameters, u"OUTPUT_POLYGONS"_s ) );
-              }
-            }
-            break;
-          }
-
-          case TINYGLTF_MODE_LINE:
-          {
-            if ( lineSink )
-            {
-              std::unique_ptr<QgsAbstractGeometry> geometry = extractLines( model, primitive, ecefTransform, tileTranslationEcef, gltfLocalTransform.get(), feedback );
-              if ( geometry )
-              {
-                QgsFeature f;
-                f.setGeometry( std::move( geometry ) );
-                if ( !lineSink->addFeature( f, QgsFeatureSink::FastInsert ) )
-                  throw QgsProcessingException( writeFeatureError( lineSink.get(), parameters, u"OUTPUT_LINES"_s ) );
-              }
-            }
-            break;
-          }
-
-          case TINYGLTF_MODE_POINTS:
-            if ( !warnedPrimitiveTypes.contains( TINYGLTF_MODE_POINTS ) )
-            {
-              feedback->reportError( QObject::tr( "Point objects are not supported" ) );
-              warnedPrimitiveTypes.insert( TINYGLTF_MODE_POINTS );
-            }
-            break;
-
-          case TINYGLTF_MODE_LINE_LOOP:
-            if ( !warnedPrimitiveTypes.contains( TINYGLTF_MODE_LINE_LOOP ) )
-            {
-              feedback->reportError( QObject::tr( "Line loops in are not supported" ) );
-              warnedPrimitiveTypes.insert( TINYGLTF_MODE_LINE_LOOP );
-            }
-            break;
-
-          case TINYGLTF_MODE_LINE_STRIP:
-            if ( !warnedPrimitiveTypes.contains( TINYGLTF_MODE_LINE_STRIP ) )
-            {
-              feedback->reportError( QObject::tr( "Line strips in are not supported" ) );
-              warnedPrimitiveTypes.insert( TINYGLTF_MODE_LINE_STRIP );
-            }
-            break;
-
-          case TINYGLTF_MODE_TRIANGLE_STRIP:
-            if ( !warnedPrimitiveTypes.contains( TINYGLTF_MODE_TRIANGLE_STRIP ) )
-            {
-              feedback->reportError( QObject::tr( "Triangular strips are not supported" ) );
-              warnedPrimitiveTypes.insert( TINYGLTF_MODE_TRIANGLE_STRIP );
-            }
-            break;
-
-          case TINYGLTF_MODE_TRIANGLE_FAN:
-            if ( !warnedPrimitiveTypes.contains( TINYGLTF_MODE_TRIANGLE_FAN ) )
-            {
-              feedback->reportError( QObject::tr( "Triangular fans are not supported" ) );
-              warnedPrimitiveTypes.insert( TINYGLTF_MODE_TRIANGLE_FAN );
-            }
-            break;
-
-          default:
-            if ( !warnedPrimitiveTypes.contains( primitive.mode ) )
-            {
-              feedback->reportError( QObject::tr( "Primitive type %1 are not supported" ).arg( primitive.mode ) );
-              warnedPrimitiveTypes.insert( primitive.mode );
-            }
-            break;
+          gltfLocalTransform = std::make_unique<QMatrix4x4>( parentTransform );
         }
       }
-    }
 
-    for ( int childNode : gltfNode.children )
-    {
-      traverseNode( childNode, gltfLocalTransform ? *gltfLocalTransform : QMatrix4x4() );
-    }
-  };
+      if ( gltfNode.mesh >= 0 )
+      {
+        const tinygltf::Mesh &mesh = model.meshes[gltfNode.mesh];
+        feedback->pushDebugInfo( QObject::tr( "Found %1 primitives in node [%2]" ).arg( mesh.primitives.size() ).arg( nodeIndex ) );
+
+        for ( const tinygltf::Primitive &primitive : mesh.primitives )
+        {
+          switch ( primitive.mode )
+          {
+            case TINYGLTF_MODE_TRIANGLES:
+            {
+              if ( polygonSink )
+              {
+                std::unique_ptr<QgsAbstractGeometry> geometry = extractTriangles( model, primitive, ecefTransform, tileTranslationEcef, gltfLocalTransform.get(), feedback );
+                if ( geometry )
+                {
+                  QgsFeature f;
+                  f.setGeometry( std::move( geometry ) );
+                  if ( !polygonSink->addFeature( f, QgsFeatureSink::FastInsert ) )
+                    throw QgsProcessingException( writeFeatureError( polygonSink.get(), parameters, u"OUTPUT_POLYGONS"_s ) );
+                  else
+                    feedback->featureAddedToSink( u"OUTPUT_POLYGONS"_s );
+                }
+              }
+              break;
+            }
+
+            case TINYGLTF_MODE_LINE:
+            {
+              if ( lineSink )
+              {
+                std::unique_ptr<QgsAbstractGeometry> geometry = extractLines( model, primitive, ecefTransform, tileTranslationEcef, gltfLocalTransform.get(), feedback );
+                if ( geometry )
+                {
+                  QgsFeature f;
+                  f.setGeometry( std::move( geometry ) );
+                  if ( !lineSink->addFeature( f, QgsFeatureSink::FastInsert ) )
+                    throw QgsProcessingException( writeFeatureError( lineSink.get(), parameters, u"OUTPUT_LINES"_s ) );
+                  else
+                    feedback->featureAddedToSink( u"OUTPUT_LINES"_s );
+                }
+              }
+              break;
+            }
+
+            case TINYGLTF_MODE_POINTS:
+              if ( !warnedPrimitiveTypes.contains( TINYGLTF_MODE_POINTS ) )
+              {
+                feedback->reportError( QObject::tr( "Point objects are not supported" ) );
+                warnedPrimitiveTypes.insert( TINYGLTF_MODE_POINTS );
+              }
+              break;
+
+            case TINYGLTF_MODE_LINE_LOOP:
+              if ( !warnedPrimitiveTypes.contains( TINYGLTF_MODE_LINE_LOOP ) )
+              {
+                feedback->reportError( QObject::tr( "Line loops in are not supported" ) );
+                warnedPrimitiveTypes.insert( TINYGLTF_MODE_LINE_LOOP );
+              }
+              break;
+
+            case TINYGLTF_MODE_LINE_STRIP:
+              if ( !warnedPrimitiveTypes.contains( TINYGLTF_MODE_LINE_STRIP ) )
+              {
+                feedback->reportError( QObject::tr( "Line strips in are not supported" ) );
+                warnedPrimitiveTypes.insert( TINYGLTF_MODE_LINE_STRIP );
+              }
+              break;
+
+            case TINYGLTF_MODE_TRIANGLE_STRIP:
+              if ( !warnedPrimitiveTypes.contains( TINYGLTF_MODE_TRIANGLE_STRIP ) )
+              {
+                feedback->reportError( QObject::tr( "Triangular strips are not supported" ) );
+                warnedPrimitiveTypes.insert( TINYGLTF_MODE_TRIANGLE_STRIP );
+              }
+              break;
+
+            case TINYGLTF_MODE_TRIANGLE_FAN:
+              if ( !warnedPrimitiveTypes.contains( TINYGLTF_MODE_TRIANGLE_FAN ) )
+              {
+                feedback->reportError( QObject::tr( "Triangular fans are not supported" ) );
+                warnedPrimitiveTypes.insert( TINYGLTF_MODE_TRIANGLE_FAN );
+              }
+              break;
+
+            default:
+              if ( !warnedPrimitiveTypes.contains( primitive.mode ) )
+              {
+                feedback->reportError( QObject::tr( "Primitive type %1 are not supported" ).arg( primitive.mode ) );
+                warnedPrimitiveTypes.insert( primitive.mode );
+              }
+              break;
+          }
+        }
+      }
+
+      for ( int childNode : gltfNode.children )
+      {
+        traverseNode( childNode, gltfLocalTransform ? *gltfLocalTransform : QMatrix4x4() );
+      }
+    };
 
   if ( !scene.nodes.empty() )
   {
@@ -464,11 +472,13 @@ QVariantMap QgsGltfToVectorFeaturesAlgorithm::processAlgorithm( const QVariantMa
   if ( polygonSink )
   {
     polygonSink->finalize();
+    feedback->featureSinkFinalized( u"OUTPUT_POLYGONS"_s );
     outputs.insert( u"OUTPUT_POLYGONS"_s, polygonDest );
   }
   if ( lineSink )
   {
     lineSink->finalize();
+    feedback->featureSinkFinalized( u"OUTPUT_LINES"_s );
     outputs.insert( u"OUTPUT_LINES"_s, lineDest );
   }
   return outputs;

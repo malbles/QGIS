@@ -24,12 +24,16 @@
 #include "qgsbrowserdockwidget.h"
 #include "qgsdataitemprovider.h"
 #include "qgsdataitemproviderregistry.h"
-#include "qgsgui.h"
 #include "qgslogger.h"
+#include "qgsprocessingalgorithm.h"
+#include "qgsprocessingprovider.h"
+#include "qgsprocessingregistry.h"
+#include "qgspythonrunner.h"
 #include "qgsstatusbar.h"
 
 #include <QAction>
 #include <QApplication>
+#include <QBuffer>
 #include <QDir>
 #include <QDockWidget>
 #include <QDomDocument>
@@ -49,10 +53,38 @@ using namespace Qt::StringLiterals;
 #define USER_MENU_PROPERTY "__usermenu__"
 #define USER_TOOLBAR_PROPERTY "__usertoolbar__"
 
+class QgsProcessingAlgorithmAction : public QAction
+{
+  public:
+    QgsProcessingAlgorithmAction( const QString &processingAlgorithmId, const QIcon &icon, const QString &title, QObject *parent )
+      : QAction( icon, title, parent )
+      , mProcessingAlgorithmId( processingAlgorithmId )
+    {
+      connect( this, &QAction::triggered, this, &QgsProcessingAlgorithmAction::run );
+    }
+
+  public slots:
+
+    void run()
+    {
+      // AlgorithmDialog class exists only as a Python implementation, so we need to run a
+      // Python command to display the associated algorithm dialog
+      const QString command(
+        "import processing; from qgis.utils import iface;"
+        "dialog = processing.createAlgorithmDialog('%1');\n"
+        "if dialog: dialog.show()\n"
+        "else: iface.messageBar().pushMessage( 'Invalid algorithm id : %1', Qgis.MessageLevel.Warning )"
+      );
+      QgsPythonRunner::run( command.arg( mProcessingAlgorithmId ) );
+    }
+
+  private:
+    QString mProcessingAlgorithmId;
+};
+
 QgsCustomization::QgsItem::QgsItem( QgsCustomization::QgsItem *parent )
   : mParent( parent )
-{
-}
+{}
 
 QgsCustomization::QgsItem::QgsItem( const QString &name, const QString &title, QgsItem *parent )
   : mName( name )
@@ -141,9 +173,7 @@ QgsCustomization::QgsItem *QgsCustomization::QgsItem::lastChild() const
 
 int QgsCustomization::QgsItem::indexOf( QgsItem *item ) const
 {
-  const auto it = std::find_if( mChildItemList.cbegin(), mChildItemList.cend(), [item]( const std::unique_ptr<QgsItem> &currentItem ) {
-    return currentItem.get() == item;
-  } );
+  const auto it = std::find_if( mChildItemList.cbegin(), mChildItemList.cend(), [item]( const std::unique_ptr<QgsItem> &currentItem ) { return currentItem.get() == item; } );
 
   if ( it != mChildItemList.cend() )
     return static_cast<int>( std::distance( mChildItemList.cbegin(), it ) );
@@ -213,11 +243,7 @@ QString QgsCustomization::QgsItem::readXml( const QDomElement &elem )
     std::unique_ptr<QgsItem> childItem = createChildItem( childElem );
     if ( !childItem )
     {
-      return QObject::tr( "Invalid XML file : failed to create an item '%1(%2)' as a child of item '%3(%4)'" )
-        .arg( childElem.tagName() )
-        .arg( childElem.attribute( u"name"_s ) )
-        .arg( xmlTag() )
-        .arg( mName );
+      return QObject::tr( "Invalid XML file : failed to create an item '%1(%2)' as a child of item '%3(%4)'" ).arg( childElem.tagName() ).arg( childElem.attribute( u"name"_s ) ).arg( xmlTag() ).arg( mName );
     }
     childItem->readXml( childElem );
     addChild( std::move( childItem ) );
@@ -248,11 +274,9 @@ void QgsCustomization::QgsItem::copyItemAttributes( const QgsCustomization::QgsI
   }
 }
 
-void QgsCustomization::QgsItem::writeXmlItem( QDomElement & ) const {
-};
+void QgsCustomization::QgsItem::writeXmlItem( QDomElement & ) const {};
 
-void QgsCustomization::QgsItem::readXmlItem( const QDomElement & ) {
-};
+void QgsCustomization::QgsItem::readXmlItem( const QDomElement & ) {};
 
 QgsCustomization::QgsItem::ItemCapability QgsCustomization::QgsItem::capabilities() const
 {
@@ -263,8 +287,7 @@ QgsCustomization::QgsItem::ItemCapability QgsCustomization::QgsItem::capabilitie
 
 QgsCustomization::QgsActionItem::QgsActionItem( QgsCustomization::QgsItem *parent )
   : QgsCustomization::QgsItem( parent )
-{
-}
+{}
 
 
 QgsCustomization::QgsActionItem::QgsActionItem( const QString &name, const QString &title, QgsItem *parent )
@@ -339,11 +362,13 @@ QgsCustomization::QgsItem::ItemCapability QgsCustomization::QgsActionItem::capab
 ////////////////
 
 QgsCustomization::QgsActionRefItem::QgsActionRefItem( QgsItem *parent )
-  : QgsActionItem( parent ) {}
+  : QgsActionItem( parent )
+{}
 
 QgsCustomization::QgsActionRefItem::QgsActionRefItem( const QString &name, const QString &title, const QString &path, QgsItem *parent )
   : QgsActionItem( name, title, parent )
-  , mPath( path ) {}
+  , mPath( path )
+{}
 
 const QString &QgsCustomization::QgsActionRefItem::actionRefPath() const
 {
@@ -442,6 +467,7 @@ QgsCustomization::QgsItem::ItemCapability QgsCustomization::QgsUserMenuItem::cap
   return static_cast<ItemCapability>(
     static_cast<int>( ItemCapability::AddActionRefChild )
     | static_cast<int>( ItemCapability::AddUserMenuChild )
+    | static_cast<int>( ItemCapability::AddProcessingAlgorithmRefChild )
     | static_cast<int>( ItemCapability::Rename )
     | static_cast<int>( ItemCapability::Delete )
   );
@@ -473,6 +499,8 @@ std::unique_ptr<QgsCustomization::QgsItem> QgsCustomization::QgsUserMenuItem::cr
 {
   if ( childElem.tagName() == "ActionRef"_L1 )
     return std::make_unique<QgsActionRefItem>( this );
+  else if ( childElem.tagName() == "ProcessingAlgorithmRef"_L1 )
+    return std::make_unique<QgsProcessingAlgorithmRefItem>( this );
   else if ( childElem.tagName() == "UserMenu"_L1 )
     return std::make_unique<QgsUserMenuItem>( this );
   else
@@ -486,7 +514,8 @@ QgsCustomization::QgsToolBarItem::QgsToolBarItem( QgsItem *parent )
 {}
 
 QgsCustomization::QgsToolBarItem::QgsToolBarItem( const QString &name, const QString &title, QgsItem *parent )
-  : QgsItem( name, title, parent ) {}
+  : QgsItem( name, title, parent )
+{}
 
 void QgsCustomization::QgsToolBarItem::setWasVisible( const bool &wasVisible )
 {
@@ -565,6 +594,8 @@ std::unique_ptr<QgsCustomization::QgsItem> QgsCustomization::QgsUserToolBarItem:
 {
   if ( childElem.tagName() == "ActionRef"_L1 )
     return std::make_unique<QgsActionRefItem>( this );
+  else if ( childElem.tagName() == "ProcessingAlgorithmRef"_L1 )
+    return std::make_unique<QgsProcessingAlgorithmRefItem>( this );
   else
     return nullptr;
 }
@@ -573,6 +604,7 @@ QgsCustomization::QgsItem::ItemCapability QgsCustomization::QgsUserToolBarItem::
 {
   return static_cast<ItemCapability>(
     static_cast<int>( ItemCapability::AddActionRefChild )
+    | static_cast<int>( ItemCapability::AddProcessingAlgorithmRefChild )
     | static_cast<int>( ItemCapability::Rename )
     | static_cast<int>( ItemCapability::Delete )
   );
@@ -654,13 +686,11 @@ QgsCustomization::QgsItem::ItemCapability QgsCustomization::QgsMenusItem::capabi
 
 QgsCustomization::QgsDockItem::QgsDockItem( QgsItem *parent )
   : QgsItem( parent )
-{
-}
+{}
 
 QgsCustomization::QgsDockItem::QgsDockItem( const QString &name, const QString &title, QgsItem *parent )
   : QgsItem( name, title, parent )
-{
-}
+{}
 
 QString QgsCustomization::QgsDockItem::xmlTag() const
 {
@@ -727,13 +757,11 @@ std::unique_ptr<QgsCustomization::QgsItem> QgsCustomization::QgsDocksItem::creat
 
 QgsCustomization::QgsBrowserElementItem::QgsBrowserElementItem( QgsItem *parent )
   : QgsItem( parent )
-{
-}
+{}
 
 QgsCustomization::QgsBrowserElementItem::QgsBrowserElementItem( const QString &name, const QString &title, QgsItem *parent )
   : QgsItem( name, title, parent )
-{
-}
+{}
 
 std::unique_ptr<QgsCustomization::QgsBrowserElementItem> QgsCustomization::QgsBrowserElementItem::cloneBrowserElementItem( QgsCustomization::QgsItem *parent ) const
 {
@@ -784,7 +812,8 @@ QgsCustomization::QgsStatusBarWidgetItem::QgsStatusBarWidgetItem( QgsItem *paren
 {}
 
 QgsCustomization::QgsStatusBarWidgetItem::QgsStatusBarWidgetItem( const QString &name, QgsItem *parent )
-  : QgsItem( name, QString(), parent ) {}
+  : QgsItem( name, QString(), parent )
+{}
 
 std::unique_ptr<QgsCustomization::QgsStatusBarWidgetItem> QgsCustomization::QgsStatusBarWidgetItem::cloneStatusBarWidgetItem( QgsCustomization::QgsItem *parent ) const
 {
@@ -829,8 +858,181 @@ std::unique_ptr<QgsCustomization::QgsItem> QgsCustomization::QgsStatusBarWidgets
 
 ////////////////
 
+QgsCustomization::QgsProcessingProviderItem::QgsProcessingProviderItem( QgsItem *parent )
+  : QgsItem( parent )
+{}
+
+QgsCustomization::QgsProcessingProviderItem::QgsProcessingProviderItem( const QString &name, const QString &title, QgsItem *parent )
+  : QgsItem( name, title, parent )
+{}
+
+std::unique_ptr<QgsCustomization::QgsProcessingProviderItem> QgsCustomization::QgsProcessingProviderItem::cloneProcessingProviderItem( QgsCustomization::QgsItem *parent ) const
+{
+  auto clone = std::make_unique<QgsCustomization::QgsProcessingProviderItem>( parent );
+  clone->copyItemAttributes( this );
+  return clone;
+}
+
+QString QgsCustomization::QgsProcessingProviderItem::xmlTag() const
+{
+  return u"ProcessingProvider"_s;
+};
+
+std::unique_ptr<QgsCustomization::QgsItem> QgsCustomization::QgsProcessingProviderItem::createChildItem( const QDomElement &childElem )
+{
+  if ( childElem.tagName() == "ProcessingGroup"_L1 )
+    return std::make_unique<QgsProcessingGroupItem>( this );
+  else
+    return nullptr;
+}
+
+////////////////
+
+QgsCustomization::QgsProcessingGroupItem::QgsProcessingGroupItem( QgsItem *parent )
+  : QgsItem( parent )
+{}
+
+QgsCustomization::QgsProcessingGroupItem::QgsProcessingGroupItem( const QString &name, const QString &title, QgsItem *parent )
+  : QgsItem( name, title, parent )
+{}
+
+std::unique_ptr<QgsCustomization::QgsProcessingGroupItem> QgsCustomization::QgsProcessingGroupItem::cloneProcessingGroupItem( QgsCustomization::QgsItem *parent ) const
+{
+  auto clone = std::make_unique<QgsCustomization::QgsProcessingGroupItem>( parent );
+  clone->copyItemAttributes( this );
+  return clone;
+}
+
+QString QgsCustomization::QgsProcessingGroupItem::xmlTag() const
+{
+  return u"ProcessingGroup"_s;
+};
+
+
+std::unique_ptr<QgsCustomization::QgsItem> QgsCustomization::QgsProcessingGroupItem::createChildItem( const QDomElement &childElem )
+{
+  if ( childElem.tagName() == "ProcessingAlgorithm"_L1 )
+    return std::make_unique<QgsProcessingAlgorithmItem>( this );
+  else
+    return nullptr;
+}
+
+////////////////
+
+QgsCustomization::QgsProcessingAlgorithmItem::QgsProcessingAlgorithmItem( QgsItem *parent )
+  : QgsItem( parent )
+{}
+
+QgsCustomization::QgsProcessingAlgorithmItem::QgsProcessingAlgorithmItem( const QString &name, const QString &title, QgsItem *parent )
+  : QgsItem( name, title, parent )
+{}
+
+std::unique_ptr<QgsCustomization::QgsProcessingAlgorithmItem> QgsCustomization::QgsProcessingAlgorithmItem::cloneProcessingAlgorithmItem( QgsCustomization::QgsItem *parent ) const
+{
+  auto clone = std::make_unique<QgsCustomization::QgsProcessingAlgorithmItem>( parent );
+  clone->copyItemAttributes( this );
+  return clone;
+}
+
+QString QgsCustomization::QgsProcessingAlgorithmItem::xmlTag() const
+{
+  return u"ProcessingAlgorithm"_s;
+};
+
+QgsCustomization::QgsItem::ItemCapability QgsCustomization::QgsProcessingAlgorithmItem::capabilities() const
+{
+  return ItemCapability::Drag;
+}
+
+////////////////
+
+QgsCustomization::QgsProcessingAlgorithmRefItem::QgsProcessingAlgorithmRefItem( QgsItem *parent )
+  : QgsItem( parent )
+{}
+
+QgsCustomization::QgsProcessingAlgorithmRefItem::QgsProcessingAlgorithmRefItem( const QString &id, const QString &name, const QString &title, QgsItem *parent )
+  : QgsItem( name, title, parent )
+  , mId( id )
+{}
+
+const QString &QgsCustomization::QgsProcessingAlgorithmRefItem::id() const
+{
+  return mId;
+}
+
+std::unique_ptr<QgsCustomization::QgsProcessingAlgorithmRefItem> QgsCustomization::QgsProcessingAlgorithmRefItem::cloneProcessingAlgorithmItem( QgsCustomization::QgsItem *parent ) const
+{
+  auto clone = std::make_unique<QgsCustomization::QgsProcessingAlgorithmRefItem>( parent );
+  clone->copyItemAttributes( this );
+  return clone;
+}
+
+QString QgsCustomization::QgsProcessingAlgorithmRefItem::xmlTag() const
+{
+  return u"ProcessingAlgorithmRef"_s;
+};
+
+QgsCustomization::QgsItem::ItemCapability QgsCustomization::QgsProcessingAlgorithmRefItem::capabilities() const
+{
+  return ItemCapability::Delete;
+}
+
+void QgsCustomization::QgsProcessingAlgorithmRefItem::writeXmlItem( QDomElement &elem ) const
+{
+  elem.setAttribute( u"id"_s, id() );
+  elem.setAttribute( u"title"_s, title() );
+};
+
+void QgsCustomization::QgsProcessingAlgorithmRefItem::readXmlItem( const QDomElement &elem )
+{
+  setTitle( elem.attribute( u"title"_s ) );
+  mId = elem.attribute( u"id"_s );
+};
+
+void QgsCustomization::QgsProcessingAlgorithmRefItem::copyItemAttributes( const QgsItem *other )
+{
+  QgsItem::copyItemAttributes( other );
+  if ( const QgsProcessingAlgorithmRefItem *processingAlgorithmRefItem = dynamic_cast<const QgsProcessingAlgorithmRefItem *>( other ) )
+  {
+    mId = processingAlgorithmRefItem->mId;
+  }
+}
+
+
+////////////////
+
+QgsCustomization::QgsProcessingProvidersItem::QgsProcessingProvidersItem()
+  : QgsItem()
+{
+  mName = "ProcessingProviders";
+  setTitle( QObject::tr( "Processing Providers" ) );
+}
+
+std::unique_ptr<QgsCustomization::QgsProcessingProvidersItem> QgsCustomization::QgsProcessingProvidersItem::cloneProcessingProvidersItem( QgsCustomization::QgsItem * ) const
+{
+  auto clone = std::make_unique<QgsCustomization::QgsProcessingProvidersItem>();
+  clone->copyItemAttributes( this );
+  return clone;
+}
+
+QString QgsCustomization::QgsProcessingProvidersItem::xmlTag() const
+{
+  return u"ProcessingProviders"_s;
+};
+
+std::unique_ptr<QgsCustomization::QgsItem> QgsCustomization::QgsProcessingProvidersItem::createChildItem( const QDomElement &childElem )
+{
+  if ( childElem.tagName() == "ProcessingProvider"_L1 )
+    return std::make_unique<QgsProcessingProviderItem>( this );
+  else
+    return nullptr;
+}
+
+////////////////
+
 QgsCustomization::QgsCustomization( const QString &customizationFile )
-  : mCustomizationFile( customizationFile )
+  : mSplashPath( QgsApplication::splashPath() )
+  , mCustomizationFile( customizationFile )
 {
   const QFileInfo fileInfo( customizationFile );
   // TODO QGIS 5: remove QGIS 3 .ini customization file import logic
@@ -851,6 +1053,11 @@ void QgsCustomization::setQgisApp( QgisApp *qgisApp )
   mQgisApp = qgisApp;
   if ( newApp )
     load();
+
+  // We need to search for algorithm icon once algorithm have been registered in the application
+  // (not at customization object creation)
+  loadProcessingAlgorithmItemIcons( mToolBars.get() );
+  loadProcessingAlgorithmItemIcons( mMenus.get() );
 
   apply();
 }
@@ -878,6 +1085,7 @@ QgsCustomization &QgsCustomization::operator=( const QgsCustomization &other )
   mMenus = other.mMenus->cloneMenusItem();
   mStatusBarWidgets = other.mStatusBarWidgets->cloneStatusBarWidgetsItem();
   mToolBars = other.mToolBars->cloneToolBarsItem();
+  mProcessingProviders = other.mProcessingProviders->cloneProcessingProvidersItem();
   mEnabled = other.mEnabled;
   mSplashPath = other.mSplashPath;
   mQgisApp = other.mQgisApp;
@@ -893,6 +1101,7 @@ void QgsCustomization::load()
   loadApplicationMenus();
   loadApplicationStatusBarWidgets();
   loadApplicationToolBars();
+  loadProcessingProviders();
 }
 
 bool QgsCustomization::isEnabled() const
@@ -933,6 +1142,11 @@ QgsCustomization::QgsStatusBarWidgetsItem *QgsCustomization::statusBarWidgetsIte
 QgsCustomization::QgsToolBarsItem *QgsCustomization::toolBarsItem() const
 {
   return mToolBars.get();
+}
+
+QgsCustomization::QgsProcessingProvidersItem *QgsCustomization::processingProvidersItem() const
+{
+  return mProcessingProviders.get();
 }
 
 void QgsCustomization::addActions( QgsItem *item, QWidget *widget ) const
@@ -994,6 +1208,40 @@ void QgsCustomization::loadApplicationToolBars()
 
     addActions( t, tb );
     t->setWasVisible( tb->isVisible() );
+  }
+}
+
+void QgsCustomization::loadProcessingProviders()
+{
+  if ( !mProcessingProviders )
+  {
+    mProcessingProviders = std::make_unique<QgsProcessingProvidersItem>();
+  }
+
+  if ( !QgsApplication::processingRegistry() )
+    return;
+
+  for ( QgsProcessingProvider *provider : QgsApplication::processingRegistry()->providers() )
+  {
+    auto providerItem = std::make_unique<QgsProcessingProviderItem>( provider->id(), provider->name(), mProcessingProviders.get() );
+    providerItem->setIcon( provider->icon() );
+    for ( const QgsProcessingAlgorithm *algorithm : provider->algorithms() )
+    {
+      const QString groupId = algorithm->groupId();
+      QgsProcessingGroupItem *group = providerItem->getChild<QgsProcessingGroupItem>( groupId );
+      if ( !group )
+      {
+        auto g = std::make_unique<QgsProcessingGroupItem>( groupId, algorithm->group(), providerItem.get() );
+        providerItem->addChild( std::move( g ) );
+        group = providerItem->lastChild<QgsProcessingGroupItem>();
+      }
+
+      auto processingItem = std::make_unique<QgsProcessingAlgorithmItem>( algorithm->id(), algorithm->displayName(), group );
+      processingItem->setIcon( algorithm->icon() );
+      group->addChild( std::move( processingItem ) );
+    }
+
+    mProcessingProviders->addChild( std::move( providerItem ) );
   }
 }
 
@@ -1159,14 +1407,14 @@ QgsCustomization::QgsQActionsIterator::QgsQActionsIterator( QWidget *widget )
   : mWidget( widget ) {};
 
 QgsCustomization::QgsQActionsIterator::Iterator::Iterator( QWidget *ptr, qsizetype idx )
-  : mIdx( idx ), mActions( ptr->actions() ) {}
+  : mIdx( idx )
+  , mActions( ptr->actions() )
+{}
 
 QgsCustomization::QgsQActionsIterator::Info QgsCustomization::QgsQActionsIterator::Iterator::operator*() const
 {
   if ( mIdx < 0 || mIdx >= mActions.count() )
-    throw std::out_of_range {
-      "Action iterator out of range"
-    };
+    throw std::out_of_range { "Action iterator out of range" };
 
   QAction *act = mActions.at( mIdx );
   Info infos;
@@ -1237,9 +1485,7 @@ QWidget *QgsCustomization::findQWidget( const QString &path )
 
   for ( const QString &pathElem : pathElems )
   {
-    if ( dynamic_cast<QToolBar *>( currentWidget )
-         || dynamic_cast<QMenu *>( currentWidget )
-         || dynamic_cast<QMenuBar *>( currentWidget ) )
+    if ( dynamic_cast<QToolBar *>( currentWidget ) || dynamic_cast<QMenu *>( currentWidget ) || dynamic_cast<QMenuBar *>( currentWidget ) )
     {
       QgsQActionsIterator actionsIterator( currentWidget );
       currentWidget = nullptr;
@@ -1283,8 +1529,7 @@ QAction *QgsCustomization::findQAction( const QString &path )
   return actionIt != actions.cend() ? *actionIt : nullptr;
 }
 
-template<class WidgetType>
-void QgsCustomization::updateMenuActionVisibility( QgsCustomization::QgsItem *parentItem, WidgetType *parentWidget )
+template<class WidgetType> void QgsCustomization::updateMenuActionVisibility( QgsCustomization::QgsItem *parentItem, WidgetType *parentWidget ) const
 {
   // clear all user menu
   const QList<QAction *> widgetActions = parentWidget->actions();
@@ -1296,9 +1541,6 @@ void QgsCustomization::updateMenuActionVisibility( QgsCustomization::QgsItem *pa
       parentWidget->removeAction( action );
     }
   }
-
-  // update non-user menu visibility
-  updateActionVisibility( parentItem, parentWidget );
 
   // add user menu
   for ( const std::unique_ptr<QgsCustomization::QgsItem> &childItem : parentItem->childItemList() )
@@ -1315,17 +1557,13 @@ void QgsCustomization::updateMenuActionVisibility( QgsCustomization::QgsItem *pa
 
       updateMenuActionVisibility( userMenu, menu );
     }
-    else if ( QgsCustomization::QgsActionRefItem *actionRef = dynamic_cast<QgsCustomization::QgsActionRefItem *>( childItem.get() ) )
-    {
-      if ( QAction *action = findQAction( actionRef->actionRefPath() ) )
-      {
-        parentWidget->addAction( action );
-      }
-    }
   }
+
+  // update non-user menu visibility
+  updateActionVisibility( parentItem, parentWidget );
 }
 
-void QgsCustomization::updateActionVisibility( QgsCustomization::QgsItem *item, QWidget *widget )
+void QgsCustomization::updateActionVisibility( QgsCustomization::QgsItem *item, QWidget *widget ) const
 {
   if ( !item || !widget )
     return;
@@ -1359,10 +1597,7 @@ void QgsCustomization::updateActionVisibility( QgsCustomization::QgsItem *item, 
   {
     QgsActionItem *action = dynamic_cast<QgsActionItem *>( childItem.get() );
     if ( !action )
-    {
-      QgsDebugError( u"Invalid child type, Action expected"_s );
       continue;
-    }
 
     if ( !action->isVisible() )
       nbRemoved++;
@@ -1374,6 +1609,26 @@ void QgsCustomization::updateActionVisibility( QgsCustomization::QgsItem *item, 
         widget->insertAction( widget->actions().at( index ), action->qAction() );
       else
         widget->addAction( action->qAction() );
+    }
+  }
+
+  for ( const std::unique_ptr<QgsItem> &childItem : item->childItemList() )
+  {
+    if ( !childItem->isVisible() )
+      continue;
+
+    if ( auto *actionRef = dynamic_cast<QgsCustomization::QgsActionRefItem *>( childItem.get() ) )
+    {
+      if ( QAction *action = findQAction( actionRef->actionRefPath() ) )
+      {
+        widget->addAction( action );
+      }
+    }
+    else if ( auto *processingAlgorithmRef = dynamic_cast<QgsCustomization::QgsProcessingAlgorithmRefItem *>( childItem.get() ) )
+    {
+      QgsProcessingAlgorithmAction *action = new QgsProcessingAlgorithmAction( processingAlgorithmRef->id(), processingAlgorithmRef->icon(), processingAlgorithmRef->title(), widget );
+      action->setObjectName( processingAlgorithmRef->name() );
+      widget->addAction( action );
     }
   }
 }
@@ -1434,8 +1689,7 @@ void QgsCustomization::applyToToolBars() const
 
   for ( const std::unique_ptr<QgsCustomization::QgsItem> &childItem : toolBarsItem()->childItemList() )
   {
-    if ( QgsCustomization::QgsUserToolBarItem *userToolBar = dynamic_cast<QgsCustomization::QgsUserToolBarItem *>( childItem.get() );
-         userToolBar && userToolBar->isVisible() )
+    if ( QgsCustomization::QgsUserToolBarItem *userToolBar = dynamic_cast<QgsCustomization::QgsUserToolBarItem *>( childItem.get() ); userToolBar && userToolBar->isVisible() )
     {
       QToolBar *toolBar = new QToolBar( userToolBar->title(), QgisApp::instance() );
       toolBar->setProperty( USER_TOOLBAR_PROPERTY, true );
@@ -1458,6 +1712,22 @@ void QgsCustomization::applyToToolBars() const
   }
 }
 
+void QgsCustomization::loadProcessingAlgorithmItemIcons( QgsItem *rootItem )
+{
+  if ( QgsCustomization::QgsProcessingAlgorithmRefItem *algorithmRefItem = dynamic_cast<QgsCustomization::QgsProcessingAlgorithmRefItem *>( rootItem ) )
+  {
+    const QgsProcessingAlgorithm *alg = QgsApplication::processingRegistry()->algorithmById( algorithmRefItem->id() );
+    if ( alg )
+    {
+      algorithmRefItem->setIcon( alg->icon() );
+    }
+  }
+
+  for ( const std::unique_ptr<QgsItem> &childItem : rootItem->childItemList() )
+  {
+    loadProcessingAlgorithmItemIcons( childItem.get() );
+  }
+}
 
 QString QgsCustomization::writeFile( const QString &fileName ) const
 {
@@ -1750,19 +2020,19 @@ QString QgsCustomization::uniqueActionName( const QString &originalActionName ) 
   return uniqueItemName( u"ActionRef_"_s + originalActionName + "_" );
 }
 
+QString QgsCustomization::uniqueProcessingAlgorithmName( const QString &originalProcessingAlgorithmName ) const
+{
+  return uniqueItemName( u"ProcessingAlgorithmRef_"_s + originalProcessingAlgorithmName + "_" );
+}
+
 QgsCustomization::QgsItem *QgsCustomization::getItem( const QString &path ) const
 {
   const QStringList pathElems = path.split( "/" );
   if ( pathElems.isEmpty() )
     return nullptr;
 
-  const QHash<QString, QgsCustomization::QgsItem *> rootItems = {
-    { "Menus", menusItem() },
-    { "ToolBars", toolBarsItem() },
-    { "Docks", docksItem() },
-    { "BrowserItems", browserElementsItem() },
-    { "StatusBarWidgets", statusBarWidgetsItem() }
-  };
+  const QHash<QString, QgsCustomization::QgsItem *> rootItems
+    = { { "Menus", menusItem() }, { "ToolBars", toolBarsItem() }, { "Docks", docksItem() }, { "BrowserItems", browserElementsItem() }, { "StatusBarWidgets", statusBarWidgetsItem() } };
 
   QgsCustomization::QgsItem *currentItem = nullptr;
   for ( const QString &pathElem : pathElems )

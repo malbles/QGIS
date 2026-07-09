@@ -57,10 +57,12 @@ void QgsExtractByExtentAlgorithm::initAlgorithm( const QVariantMap & )
 
 QString QgsExtractByExtentAlgorithm::shortHelpString() const
 {
-  return QObject::tr( "This algorithm creates a new vector layer that only contains features which fall within a specified extent. "
-                      "Any features which intersect the extent will be included.\n\n"
-                      "Optionally, feature geometries can also be clipped to the extent. If this option is selected, then the output "
-                      "geometries will automatically be converted to multi geometries to ensure uniform output geometry types." );
+  return QObject::tr(
+    "This algorithm creates a new vector layer that only contains features which fall within a specified extent. "
+    "Any features which intersect the extent will be included.\n\n"
+    "Optionally, feature geometries can also be clipped to the extent. If this option is selected, then the output "
+    "geometries will automatically be converted to multi geometries to ensure uniform output geometry types."
+  );
 }
 
 QString QgsExtractByExtentAlgorithm::shortDescription() const
@@ -110,7 +112,7 @@ QVariantMap QgsExtractByExtentAlgorithm::processAlgorithm( const QVariantMap &pa
 
     if ( clip )
     {
-      QgsGeometry g = f.geometry().intersection( clipGeom );
+      QgsGeometry g = f.geometry().intersection( clipGeom, QgsGeometryParameters(), feedback );
 
       if ( g.type() != Qgis::GeometryType::Point )
       {
@@ -124,10 +126,13 @@ QVariantMap QgsExtractByExtentAlgorithm::processAlgorithm( const QVariantMap &pa
 
     if ( !sink->addFeature( f, QgsFeatureSink::FastInsert ) )
       throw QgsProcessingException( writeFeatureError( sink.get(), parameters, u"OUTPUT"_s ) );
+    else
+      feedback->featureAddedToSink( u"OUTPUT"_s );
     feedback->setProgress( i * step );
   }
 
   sink->finalize();
+  feedback->featureSinkFinalized( u"OUTPUT"_s );
 
   QVariantMap outputs;
   outputs.insert( u"OUTPUT"_s, dest );

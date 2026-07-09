@@ -102,6 +102,10 @@ QgsFcgiServerRequest::QgsFcgiServerRequest()
     {
       method = PatchMethod;
     }
+    else if ( strcmp( me, "OPTIONS" ) == 0 )
+    {
+      method = OptionsMethod;
+    }
   }
 
   if ( method == PostMethod || method == PutMethod || method == PatchMethod )
@@ -116,10 +120,7 @@ QgsFcgiServerRequest::QgsFcgiServerRequest()
   // Fill the headers dictionary
   for ( const auto &headerKey : qgsEnumMap<QgsServerRequest::RequestHeader>() )
   {
-    const QString headerName = QgsStringUtils::capitalize(
-                                 QString( headerKey ).replace( '_'_L1, ' '_L1 ), Qgis::Capitalization::TitleCase
-    )
-                                 .replace( ' '_L1, '-'_L1 );
+    const QString headerName = QgsStringUtils::capitalize( QString( headerKey ).replace( '_'_L1, ' '_L1 ), Qgis::Capitalization::TitleCase ).replace( ' '_L1, '-'_L1 );
     const char *result = getenv( u"HTTP_%1"_s.arg( headerKey ).toStdString().c_str() );
     if ( result && strlen( result ) > 0 )
     {
@@ -161,9 +162,7 @@ void QgsFcgiServerRequest::fillUrl( QUrl &url ) const
   // scheme
   if ( url.scheme().isEmpty() )
   {
-    QString( getenv( "HTTPS" ) ).compare( "on"_L1, Qt::CaseInsensitive ) == 0
-      ? url.setScheme( u"https"_s )
-      : url.setScheme( u"http"_s );
+    QString( getenv( "HTTPS" ) ).compare( "on"_L1, Qt::CaseInsensitive ) == 0 ? url.setScheme( u"https"_s ) : url.setScheme( u"http"_s );
   }
 }
 

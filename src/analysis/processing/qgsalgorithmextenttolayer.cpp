@@ -36,9 +36,11 @@ void QgsExtentToLayerAlgorithm::initAlgorithm( const QVariantMap & )
 
 QString QgsExtentToLayerAlgorithm::shortHelpString() const
 {
-  return QObject::tr( "This algorithm creates a new vector layer that contains a single feature with geometry matching an extent parameter.\n\n"
-                      "It can be used in models to convert an extent into a layer which can be used for other algorithms which require "
-                      "a layer based input." );
+  return QObject::tr(
+    "This algorithm creates a new vector layer that contains a single feature with geometry matching an extent parameter.\n\n"
+    "It can be used in models to convert an extent into a layer which can be used for other algorithms which require "
+    "a layer based input."
+  );
 }
 
 QString QgsExtentToLayerAlgorithm::shortDescription() const
@@ -69,8 +71,11 @@ QVariantMap QgsExtentToLayerAlgorithm::processAlgorithm( const QVariantMap &para
   f.setGeometry( geom );
   if ( !sink->addFeature( f, QgsFeatureSink::FastInsert ) )
     throw QgsProcessingException( writeFeatureError( sink.get(), parameters, u"OUTPUT"_s ) );
+  else
+    feedback->featureAddedToSink( u"OUTPUT"_s );
 
   sink->finalize();
+  feedback->featureSinkFinalized( u"OUTPUT"_s );
   feedback->setProgress( 100 );
 
   QVariantMap outputs;

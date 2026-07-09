@@ -50,8 +50,7 @@ struct Tile
 
 struct MetaTile
 {
-    MetaTile()
-    {}
+    MetaTile() {}
 
     void addTile( const int row, const int col, Tile tileToAdd )
     {
@@ -125,6 +124,7 @@ class QgsXyzTilesBaseAlgorithm : public QgsProcessingAlgorithm
     long long mTotalTiles = 0;
     long long mProcessedTiles = 0;
     QgsCoordinateTransformContext mTransformContext;
+    QString mEllipsoid;
     QPointer<QEventLoop> mEventLoop;
     QList<MetaTile> mMetaTiles;
     QMap<QgsMapRendererSequentialJob *, MetaTile> mRendererJobs;

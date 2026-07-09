@@ -169,7 +169,9 @@ class GUI_EXPORT QgsModelDesignerSocketGraphicItem : public QgsModelDesignerFlat
      *
      * The sockets will be rendered at the specified \a position
      */
-    QgsModelDesignerSocketGraphicItem( QgsModelComponentGraphicItem *parent SIP_TRANSFERTHIS, QgsProcessingModelComponent *component, int index, const QPointF &position, Qt::Edge edge, const QSizeF &size = QSizeF( 11, 11 ) );
+    QgsModelDesignerSocketGraphicItem(
+      QgsModelComponentGraphicItem *parent SIP_TRANSFERTHIS, QgsProcessingModelComponent *component, int index, const QPointF &position, Qt::Edge edge, const QSizeF &size = QSizeF( 11, 11 )
+    );
 
     void paint( QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget = nullptr ) override;
 
@@ -227,30 +229,7 @@ class GUI_EXPORT QgsModelDesignerSocketGraphicItem : public QgsModelDesignerFlat
     float mSocketOutlineWidth = 1.5;
 };
 
-/**
- * \ingroup gui
- * \brief A text with a background used to display the feature count.
- * \warning Not stable API
- * \since QGIS 4.0
- */
-class GUI_EXPORT QgsModelDesignerFeatureCountGraphicItem : public QGraphicsTextItem SIP_SKIP
-{
-    Q_OBJECT
-  public:
-    QgsModelDesignerFeatureCountGraphicItem( QgsModelArrowItem *link SIP_TRANSFERTHIS, const QString &text );
 
-    void paint( QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget = nullptr ) override;
-
-  protected:
-    /**
-    * Sets the position of the text along the path
-    */
-    void setPosition();
-
-  private:
-    QgsModelArrowItem *mLink = nullptr;
-    static constexpr int FONT_SIZE = 10; // Font size for the feature count text
-};
 ///@endcond
 
 #endif // QGSMODELGRAPHICITEM_H

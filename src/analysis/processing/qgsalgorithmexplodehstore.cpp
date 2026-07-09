@@ -54,8 +54,10 @@ QString QgsExplodeHstoreAlgorithm::groupId() const
 
 QString QgsExplodeHstoreAlgorithm::shortHelpString() const
 {
-  return QObject::tr( "This algorithm creates a copy of the input layer and adds a new field for every unique key in the HStore field.\n"
-                      "The expected field list is an optional comma separated list. By default, all unique keys are added. If this list is specified, only these fields are added and the HStore field is updated." );
+  return QObject::tr(
+    "This algorithm creates a copy of the input layer and adds a new field for every unique key in the HStore field.\n"
+    "The expected field list is an optional comma separated list. By default, all unique keys are added. If this list is specified, only these fields are added and the HStore field is updated."
+  );
 }
 
 QString QgsExplodeHstoreAlgorithm::shortDescription() const
@@ -183,9 +185,12 @@ QVariantMap QgsExplodeHstoreAlgorithm::processAlgorithm( const QVariantMap &para
     outFeature.setAttributes( outAttributes );
     if ( !sink->addFeature( outFeature, QgsFeatureSink::FastInsert ) )
       throw QgsProcessingException( writeFeatureError( sink.get(), parameters, u"OUTPUT"_s ) );
+    else
+      feedback->featureAddedToSink( u"OUTPUT"_s );
   }
 
   sink->finalize();
+  feedback->featureSinkFinalized( u"OUTPUT"_s );
 
   QVariantMap outputs;
   outputs.insert( u"OUTPUT"_s, sinkId );

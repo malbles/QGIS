@@ -164,6 +164,7 @@ class QgsMssqlProvider final : public QgsVectorDataProvider
   private:
     bool execLogged( QSqlQuery &qry, const QString &sql, const QString &queryOrigin = QString() ) const;
     bool execPreparedLogged( QSqlQuery &qry, const QString &queryOrigin = QString() ) const;
+    void reloadProviderData() override;
 
     //! Fields
     QgsFields mAttributeFields;
@@ -185,7 +186,9 @@ class QgsMssqlProvider final : public QgsVectorDataProvider
     bool mSkipFailures = false;
     bool mUseGeometryColumnsTableForExtent = false;
 
-    long long mNumberFeatures = 0;
+    //! Whether the next call to featureCount() should refresh the feature count
+    mutable bool mRefreshFeatureCount = true;
+    mutable long long mFeaturesCounted = 0;
 
     /**
       *
@@ -289,7 +292,9 @@ class QgsMssqlProviderMetadata final : public QgsProviderMetadata
     QString loadStyle( const QString &uri, QString &errCause ) override;
     QString loadStoredStyle( const QString &uri, QString &styleName, QString &errCause ) override;
     bool styleExists( const QString &uri, const QString &styleId, QString &errorCause ) override;
-    bool saveStyle( const QString &uri, const QString &qmlStyle, const QString &sldStyle, const QString &styleName, const QString &styleDescription, const QString &uiFileContent, bool useAsDefault, QString &errCause ) override;
+    bool saveStyle(
+      const QString &uri, const QString &qmlStyle, const QString &sldStyle, const QString &styleName, const QString &styleDescription, const QString &uiFileContent, bool useAsDefault, QString &errCause
+    ) override;
 
     Qgis::VectorExportResult createEmptyLayer(
       const QString &uri,

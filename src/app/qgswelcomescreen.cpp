@@ -21,11 +21,14 @@
 #include "qgsapplication.h"
 #include "qgspluginmanager.h"
 #include "qgssettings.h"
+#include "qgssettingsentryimpl.h"
+#include "qgssettingstree.h"
 
 #include <QAbstractButton>
 #include <QMessageBox>
 #include <QQmlContext>
 #include <QString>
+#include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -39,27 +42,30 @@ using namespace Qt::StringLiterals;
 QgsWelcomeScreenController::QgsWelcomeScreenController( QgsWelcomeScreen *welcomeScreen )
   : QObject( welcomeScreen )
   , mWelcomeScreen( welcomeScreen )
-{
-}
+{}
 
 void QgsWelcomeScreenController::openProject( const QString &path )
 {
-  QgisApp::instance()->openProject( path );
+  // QTimer needed to prevent crashes when the Item bound to the calling function is deleted by the ListView
+  QTimer::singleShot( 1, this, [path]() { QgisApp::instance()->openProject( path ); } );
 }
 
 void QgsWelcomeScreenController::createBlankProject()
 {
-  QgisApp::instance()->newProject();
+  // QTimer needed to prevent crashes when the Item bound to the calling function is deleted by the ListView
+  QTimer::singleShot( 1, this, []() { QgisApp::instance()->newProject(); } );
 }
 
 void QgsWelcomeScreenController::createProjectFromBasemap()
 {
-  QgisApp::instance()->fileNewWithBasemap();
+  // QTimer needed to prevent crashes when the Item bound to the calling function is deleted by the ListView
+  QTimer::singleShot( 1, this, []() { QgisApp::instance()->fileNewWithBasemap(); } );
 }
 
 void QgsWelcomeScreenController::createProjectFromTemplate( const QString &path )
 {
-  QgisApp::instance()->fileNewFromTemplate( path );
+  // QTimer needed to prevent crashes when the Item bound to the calling function is deleted by the ListView
+  QTimer::singleShot( 1, this, [path]() { QgisApp::instance()->fileNewFromTemplate( path ); } );
 }
 
 void QgsWelcomeScreenController::clearRecentProjects()
@@ -113,6 +119,9 @@ void QgsWelcomeScreenController::forwardDrop( const QString &text, const QString
 }
 
 
+const QgsSettingsEntryBool *QgsWelcomeScreen::settingsCheckVersion
+  = new QgsSettingsEntryBool( u"check-version"_s, QgsSettingsTree::sTreeApp, true, u"Whether the welcome screen should check for a newer QGIS version online"_s );
+
 QgsWelcomeScreen::QgsWelcomeScreen( bool skipVersionCheck, QWidget *parent )
   : QQuickWidget( parent )
 {
@@ -148,8 +157,7 @@ QgsWelcomeScreen::QgsWelcomeScreen( bool skipVersionCheck, QWidget *parent )
 
   QgsSettings settings;
   mVersionInfo = new QgsVersionInfo();
-  if ( !QgsApplication::isRunningFromBuildDir() && settings.value( u"/qgis/allowVersionCheck"_s, true ).toBool()
-       && settings.value( u"qgis/checkVersion"_s, true ).toBool() && !skipVersionCheck )
+  if ( !QgsApplication::isRunningFromBuildDir() && settings.value( u"/qgis/allowVersionCheck"_s, true ).toBool() && settingsCheckVersion->value() && !skipVersionCheck )
   {
     connect( mVersionInfo, &QgsVersionInfo::versionInfoAvailable, this, &QgsWelcomeScreen::versionInfoReceived );
     mVersionInfo->checkVersion();
@@ -175,8 +183,8 @@ void QgsWelcomeScreen::refreshGeometry()
 {
   if ( QWidget *parentWidget = qobject_cast<QWidget *>( parent() ) )
   {
-    const int adjustedWidth = std::min( mOriginalWidth, parentWidget->width() - 80 );
-    const int adjustedHeight = std::min( mOriginalHeight, parentWidget->height() - 80 );
+    const int adjustedWidth = std::min( mOriginalWidth, parentWidget->width() - 10 );
+    const int adjustedHeight = std::min( mOriginalHeight, parentWidget->height() - 60 );
     const int adjustedX = ( parentWidget->width() - adjustedWidth ) / 2;
     const int adjustedY = ( parentWidget->height() - adjustedHeight ) / 2;
     setGeometry( adjustedX, adjustedY, adjustedWidth, adjustedHeight );
@@ -232,7 +240,8 @@ QgsTemplateProjectsModel *QgsWelcomeScreen::templateProjectsModel()
 
 void QgsWelcomeScreen::clearRecentProjects()
 {
-  QMessageBox messageBox( QMessageBox::Question, tr( "Recent Projects" ), tr( "Are you sure you want to clear the list of recent projects?" ), QMessageBox::No | QMessageBox::Yes | QMessageBox::YesToAll, this );
+  QMessageBox
+    messageBox( QMessageBox::Question, tr( "Recent Projects" ), tr( "Are you sure you want to clear the list of recent projects?" ), QMessageBox::No | QMessageBox::Yes | QMessageBox::YesToAll, this );
   messageBox.button( QMessageBox::YesToAll )->setText( tr( "Yes, including pinned projects" ) );
   int answer = messageBox.exec();
   if ( answer != QMessageBox::No )
@@ -256,7 +265,9 @@ void QgsWelcomeScreen::removeTemplateProject( int row )
   {
     QMessageBox msgBox;
     msgBox.setWindowTitle( tr( "Delete Template" ) );
-    msgBox.setText( tr( "Do you want to delete the template %1? This action can not be undone." ).arg( templateItem->data( static_cast<int>( QgsTemplateProjectsModel::CustomRole::TitleRole ) ).toString() ) );
+    msgBox.setText(
+      tr( "Do you want to delete the template %1? This action can not be undone." ).arg( templateItem->data( static_cast<int>( QgsTemplateProjectsModel::CustomRole::TitleRole ) ).toString() )
+    );
     auto deleteButton = msgBox.addButton( tr( "Delete" ), QMessageBox::YesRole );
     msgBox.addButton( QMessageBox::Cancel );
     msgBox.setIcon( QMessageBox::Question );

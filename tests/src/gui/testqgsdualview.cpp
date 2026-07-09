@@ -73,7 +73,7 @@ class TestQgsDualView : public QObject
     QgsMapCanvas *mCanvas = nullptr;
     QgsVectorLayer *mPointsLayer = nullptr;
     QString mTestDataDir;
-    QgsDualView *mDualView = nullptr;
+    std::unique_ptr<QgsDualView> mDualView;
 };
 
 void TestQgsDualView::initTestCase()
@@ -107,14 +107,12 @@ void TestQgsDualView::cleanupTestCase()
 
 void TestQgsDualView::init()
 {
-  mDualView = new QgsDualView();
+  mDualView = std::make_unique<QgsDualView>();
   mDualView->init( mPointsLayer, mCanvas );
 }
 
 void TestQgsDualView::cleanup()
-{
-  delete mDualView;
-}
+{}
 
 void TestQgsDualView::testColumnCount()
 {
@@ -202,23 +200,24 @@ void TestQgsDualView::testSort()
   mDualView->setSortExpression( u"Class"_s );
 
   QStringList classes;
-  classes << u"B52"_s
-          << u"B52"_s
-          << u"B52"_s
-          << u"B52"_s
-          << u"Biplane"_s
-          << u"Biplane"_s
-          << u"Biplane"_s
-          << u"Biplane"_s
-          << u"Biplane"_s
-          << u"Jet"_s
-          << u"Jet"_s
-          << u"Jet"_s
-          << u"Jet"_s
-          << u"Jet"_s
-          << u"Jet"_s
-          << u"Jet"_s
-          << u"Jet"_s;
+  classes
+    << u"B52"_s
+    << u"B52"_s
+    << u"B52"_s
+    << u"B52"_s
+    << u"Biplane"_s
+    << u"Biplane"_s
+    << u"Biplane"_s
+    << u"Biplane"_s
+    << u"Biplane"_s
+    << u"Jet"_s
+    << u"Jet"_s
+    << u"Jet"_s
+    << u"Jet"_s
+    << u"Jet"_s
+    << u"Jet"_s
+    << u"Jet"_s
+    << u"Jet"_s;
 
   for ( int i = 0; i < classes.length(); ++i )
   {
@@ -227,23 +226,7 @@ void TestQgsDualView::testSort()
   }
 
   QStringList headings;
-  headings << u"0"_s
-           << u"0"_s
-           << u"12"_s
-           << u"34"_s
-           << u"80"_s
-           << u"85"_s
-           << u"90"_s
-           << u"90"_s
-           << u"95"_s
-           << u"100"_s
-           << u"140"_s
-           << u"160"_s
-           << u"180"_s
-           << u"240"_s
-           << u"270"_s
-           << u"300"_s
-           << u"340"_s;
+  headings << u"0"_s << u"0"_s << u"12"_s << u"34"_s << u"80"_s << u"85"_s << u"90"_s << u"90"_s << u"95"_s << u"100"_s << u"140"_s << u"160"_s << u"180"_s << u"240"_s << u"270"_s << u"300"_s << u"340"_s;
 
   mDualView->setSortExpression( u"Heading"_s );
 
@@ -252,6 +235,19 @@ void TestQgsDualView::testSort()
     const QModelIndex index = mDualView->tableView()->model()->index( i, 1 );
     QCOMPARE( mDualView->tableView()->model()->data( index ).toString(), headings.at( i ) );
   }
+
+  // Test crash when a field was added, sorted by and removed
+  const int fieldsCount = mPointsLayer->fields().count();
+  const int columnsCount = mDualView->attributeTableConfig().columns().size();
+  const QgsField newField( u"newField"_s, QMetaType::Type::QString );
+  mPointsLayer->startEditing();
+  mPointsLayer->addAttribute( newField );
+  QCOMPARE( mDualView->attributeTableConfig().columns().size(), columnsCount + 1 );
+  QCOMPARE( mPointsLayer->fields().count(), fieldsCount + 1 );
+  mDualView->setSortExpression( u"newField"_s );
+  mPointsLayer->rollBack();
+  QCOMPARE( mPointsLayer->fields().count(), fieldsCount );
+  QCOMPARE( mDualView->attributeTableConfig().columns().size(), columnsCount );
 }
 
 void TestQgsDualView::testAttributeFormSharedValueScanning()

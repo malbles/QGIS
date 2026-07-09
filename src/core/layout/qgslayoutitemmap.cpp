@@ -186,6 +186,7 @@ double QgsLayoutItemMap::scale() const
   calculator.setDpi( 25.4 ); //Using mm
   if ( QgsProject *project = mLayout->project() )
   {
+    calculator.setEllipsoid( project->ellipsoid() );
     calculator.setMethod( project->scaleMethod() );
   }
   double widthInMm = mLayout->convertFromLayoutUnits( rect().width(), Qgis::LayoutUnit::Millimeters ).length();
@@ -212,9 +213,13 @@ void QgsLayoutItemMap::setScale( double scaleDenominator, bool forceUpdate )
     QgsScaleCalculator calculator;
     calculator.setMapUnits( crs().mapUnits() );
     calculator.setDpi( 25.4 ); //QGraphicsView units are mm
-    if ( mLayout && mLayout->project() )
+    if ( mLayout )
     {
-      calculator.setMethod( mLayout->project()->scaleMethod() );
+      if ( QgsProject *project = mLayout->project() )
+      {
+        calculator.setEllipsoid( project->ellipsoid() );
+        calculator.setMethod( project->scaleMethod() );
+      }
     }
 
     const double newScale = calculator.calculate( mExtent, rect().width() );
@@ -386,6 +391,9 @@ void QgsLayoutItemMap::setLayers( const QList<QgsMapLayer *> &layers )
       else
       {
         std::unique_ptr<QgsGroupLayer> groupLayerClone { groupLayer->clone() };
+        // It is important to preserve the original groupLayer id.
+        // E.g., to identify rendered files (by id) in Geospatial PDF exports.
+        groupLayerClone->setId( groupLayer->id() );
         mGroupLayers[groupLayer->id()] = std::move( groupLayerClone );
         *it = mGroupLayers[groupLayer->id()].get();
       }
@@ -445,10 +453,13 @@ void QgsLayoutItemMap::moveContent( double dx, double dy )
   if ( !mDrawing )
   {
     transformShift( dx, dy );
-    mExtent.setXMinimum( mExtent.xMinimum() + dx );
-    mExtent.setXMaximum( mExtent.xMaximum() + dx );
-    mExtent.setYMinimum( mExtent.yMinimum() + dy );
-    mExtent.setYMaximum( mExtent.yMaximum() + dy );
+    if ( !mExtent.isNull() )
+    {
+      mExtent.setXMinimum( mExtent.xMinimum() + dx );
+      mExtent.setXMaximum( mExtent.xMaximum() + dx );
+      mExtent.setYMinimum( mExtent.yMinimum() + dy );
+      mExtent.setYMaximum( mExtent.yMaximum() + dy );
+    }
 
     //in case data defined extents are set, these override the calculated values
     refreshMapExtents();
@@ -461,7 +472,7 @@ void QgsLayoutItemMap::moveContent( double dx, double dy )
 
 void QgsLayoutItemMap::zoomContent( double factor, QPointF point )
 {
-  if ( mDrawing )
+  if ( mDrawing || mExtent.isNull() )
   {
     return;
   }
@@ -502,9 +513,13 @@ void QgsLayoutItemMap::zoomContent( double factor, QPointF point )
     QgsScaleCalculator calculator;
     calculator.setMapUnits( crs().mapUnits() );
     calculator.setDpi( 25.4 ); //QGraphicsView units are mm
-    if ( mLayout && mLayout->project() )
+    if ( mLayout )
     {
-      calculator.setMethod( mLayout->project()->scaleMethod() );
+      if ( QgsProject *project = mLayout->project() )
+      {
+        calculator.setMethod( project->scaleMethod() );
+        calculator.setEllipsoid( project->ellipsoid() );
+      }
     }
     const double newScale = calculator.calculate( mExtent, rect().width() );
     if ( !qgsDoubleNear( newScale, 0 ) )
@@ -1622,8 +1637,9 @@ void QgsLayoutItemMap::drawMap( QPainter *painter, const QgsRectangle &extent, Q
   {
     return;
   }
-  if ( qgsDoubleNear( size.width(), 0.0 ) || qgsDoubleNear( size.height(), 0.0 ) )
+  if ( std::isnan( size.width() ) || std::isnan( size.height() ) || qgsDoubleNear( size.width(), 0.0 ) || qgsDoubleNear( size.height(), 0.0 ) )
   {
+    QgsDebugError( u"Trying to draw a map with invalid size (%1, %2)"_s.arg( size.width() ).arg( size.height() ) );
     //don't attempt to draw if size is invalid
     return;
   }
@@ -2354,17 +2370,20 @@ void QgsLayoutItemMap::painterJobFinished()
 void QgsLayoutItemMap::shapeChanged()
 {
   // keep center as center
-  QgsPointXY oldCenter = mExtent.center();
+  if ( !mExtent.isNull() )
+  {
+    QgsPointXY oldCenter = mExtent.center();
 
-  double w = rect().width();
-  double h = rect().height();
+    double w = rect().width();
+    double h = rect().height();
 
-  // keep same width as before
-  double newWidth = mExtent.width();
-  // but scale height to match item's aspect ratio
-  double newHeight = newWidth * h / w;
+    // keep same width as before
+    double newWidth = mExtent.width();
+    // but scale height to match item's aspect ratio
+    double newHeight = newWidth * h / w;
 
-  mExtent = QgsRectangle::fromCenterAndSize( oldCenter, newWidth, newHeight );
+    mExtent = QgsRectangle::fromCenterAndSize( oldCenter, newWidth, newHeight );
+  }
 
   //recalculate data defined scale and extents
   refreshMapExtents();
@@ -3032,6 +3051,7 @@ void QgsLayoutItemMap::updateAtlasFeature()
     calc.setDpi( 25.4 );
     if ( QgsProject *project = mLayout->project() )
     {
+      calc.setEllipsoid( project->ellipsoid() );
       calc.setMethod( project->scaleMethod() );
     }
     double originalScale = calc.calculate( originalExtent, rect().width() );

@@ -55,7 +55,8 @@ QString QgsConcaveHullAlgorithm::groupId() const
 
 QString QgsConcaveHullAlgorithm::shortHelpString() const
 {
-  return QObject::tr( "This algorithm computes the concave hull covering all features from an input point layer." ) + u"\n\n"_s
+  return QObject::tr( "This algorithm computes the concave hull covering all features from an input point layer." )
+         + u"\n\n"_s
          + QObject::tr( "See the 'Concave hull (by feature)' algorithm for a concave hull calculation which covers individual features from a layer." );
 }
 
@@ -110,6 +111,7 @@ QVariantMap QgsConcaveHullAlgorithm::processAlgorithm( const QVariantMap &parame
 #endif
 
   sink->finalize();
+  feedback->featureSinkFinalized( u"OUTPUT"_s );
 
   QVariantMap outputs;
   outputs.insert( u"OUTPUT"_s, dest );
@@ -148,7 +150,7 @@ void QgsConcaveHullAlgorithm::concaveHullGeos( std::unique_ptr<QgsFeatureSink> &
       allPoints.addPartV2( qgsgeometry_cast<const QgsPoint *>( geom )->clone(), Qgis::WkbType::Point );
     }
   }
-  const QgsGeometry concaveHull = allPoints.concaveHull( mPercentage, mAllowHoles );
+  const QgsGeometry concaveHull = allPoints.concaveHull( mPercentage, mAllowHoles, feedback );
 
   if ( concaveHull.isNull() && !concaveHull.lastError().isEmpty() )
   {

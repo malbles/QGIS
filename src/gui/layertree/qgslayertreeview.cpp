@@ -75,9 +75,7 @@ QgsLayerTreeViewBase::QgsLayerTreeViewBase( QWidget *parent )
 }
 
 QgsLayerTreeViewBase::~QgsLayerTreeViewBase()
-{
-  delete mBlockDoubleClickTimer;
-}
+{}
 
 void QgsLayerTreeViewBase::mouseDoubleClickEvent( QMouseEvent *event )
 {
@@ -486,9 +484,7 @@ QgsLayerTreeView::QgsLayerTreeView( QWidget *parent )
 }
 
 QgsLayerTreeView::~QgsLayerTreeView()
-{
-  delete mMenuProvider;
-}
+{}
 
 void QgsLayerTreeView::setModel( QAbstractItemModel *model )
 {
@@ -533,8 +529,7 @@ void QgsLayerTreeView::setModel( QgsLayerTreeModel *treeModel, QgsLayerTreeProxy
 
 void QgsLayerTreeView::setMenuProvider( QgsLayerTreeViewMenuProvider *menuProvider )
 {
-  delete mMenuProvider;
-  mMenuProvider = menuProvider;
+  mMenuProvider.reset( menuProvider );
 }
 
 void QgsLayerTreeView::setLayerVisible( QgsMapLayer *layer, bool visible )
@@ -987,26 +982,29 @@ bool QgsLayerTreeProxyModel::nodeShown( QgsLayerTreeNode *node ) const
   if ( !node )
     return true;
 
-  if ( node->nodeType() == QgsLayerTreeNode::NodeGroup )
+  switch ( node->nodeType() )
   {
-    return true;
-  }
-  else
-  {
-    QgsMapLayer *layer = QgsLayerTree::toLayer( node )->layer();
-    if ( !layer )
-      return true;
-    if ( !mFilterText.isEmpty() && !layer->name().contains( mFilterText, Qt::CaseInsensitive ) )
-      return false;
-    if ( !mShowPrivateLayers && layer->flags().testFlag( QgsMapLayer::LayerFlag::Private ) )
+    case QgsLayerTreeNode::NodeLayer:
     {
-      return false;
-    }
-    if ( mHideValidLayers && layer->isValid() )
-      return false;
+      QgsMapLayer *layer = QgsLayerTree::toLayer( node )->layer();
+      if ( !layer )
+        return true;
+      if ( !mFilterText.isEmpty() && !layer->name().contains( mFilterText, Qt::CaseInsensitive ) )
+        return false;
+      if ( !mShowPrivateLayers && layer->flags().testFlag( QgsMapLayer::LayerFlag::Private ) )
+      {
+        return false;
+      }
+      if ( mHideValidLayers && layer->isValid() )
+        return false;
 
-    return true;
+      return true;
+    }
+    case QgsLayerTreeNode::NodeGroup:
+    case QgsLayerTreeNode::NodeCustom:
+      return true;
   }
+  return true;
 }
 
 bool QgsLayerTreeProxyModel::showPrivateLayers() const

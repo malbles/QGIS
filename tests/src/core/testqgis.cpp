@@ -48,7 +48,8 @@ class TestQgis : public QgsTest
 
   public:
     TestQgis()
-      : QgsTest( u"Qgis Tests"_s ) {}
+      : QgsTest( u"Qgis Tests"_s )
+    {}
 
   private slots:
     void init() {}    // will be called before each testfunction is executed.
@@ -76,6 +77,12 @@ class TestQgis : public QgsTest
     void testQMapQVariantList();
     void testQgsMapJoin();
     void testQgsSetJoin();
+    void testDoubleNear_data();
+    void testDoubleNear();
+    void testDoubleLessThanOrNear_data();
+    void testDoubleLessThanOrNear();
+    void testDoubleGreaterThanOrNear_data();
+    void testDoubleGreaterThanOrNear();
 };
 
 void TestQgis::permissiveToDouble()
@@ -561,7 +568,12 @@ void TestQgis::qVariantCompare_data()
   QTest::newRow( "qvariantlist equal one element" ) << QVariant( QVariantList() << QVariant( 9 ) ) << QVariant( QVariantList() << QVariant( 9 ) ) << false << false << 0;
   QTest::newRow( "qvariantlist 3" ) << QVariant( QVariantList() << QVariant( 5 ) << QVariant( 3 ) ) << QVariant( QVariantList() << QVariant( 5 ) << QVariant( 6 ) ) << true << false << -1;
   QTest::newRow( "qvariantlist 4" ) << QVariant( QVariant( QVariantList() << QVariant( 5 ) << QVariant( 6 ) ) ) << QVariant( QVariantList() << QVariant( 5 ) << QVariant( 3 ) ) << false << true << 1;
-  QTest::newRow( "qvariantlist equal two element" ) << QVariant( QVariant( QVariantList() << QVariant( 5 ) << QVariant( 6 ) ) ) << QVariant( QVariantList() << QVariant( 5 ) << QVariant( 6 ) ) << false << false << 0;
+  QTest::newRow( "qvariantlist equal two element" )
+    << QVariant( QVariant( QVariantList() << QVariant( 5 ) << QVariant( 6 ) ) )
+    << QVariant( QVariantList() << QVariant( 5 ) << QVariant( 6 ) )
+    << false
+    << false
+    << 0;
   QTest::newRow( "qvariantlist 5" ) << QVariant( QVariantList() << QVariant( 5 ) ) << QVariant( QVariantList() << QVariant( 5 ) << QVariant( 6 ) ) << true << false << -1;
   QTest::newRow( "qvariantlist 5" ) << QVariant( QVariantList() << QVariant( 5 ) << QVariant( 6 ) ) << QVariant( QVariantList() << QVariant( 5 ) ) << false << true << 1;
   QTest::newRow( "qstringlist empty" ) << QVariant( QStringList() ) << QVariant( QStringList() ) << false << false << 0;
@@ -618,15 +630,9 @@ void TestQgis::testNanCompatibleEquals()
 class ConstTester
 {
   public:
-    void doSomething()
-    {
-      mVal = 1;
-    }
+    void doSomething() { mVal = 1; }
 
-    void doSomething() const
-    {
-      mVal = 2;
-    }
+    void doSomething() const { mVal = 2; }
 
     mutable int mVal = 0;
 };
@@ -763,6 +769,11 @@ void TestQgis::testQgsFlagValueToKeys()
   QCOMPARE( ok, true );
   QCOMPARE( qgsFlagValueToKeys( QgsFieldProxyModel::Filters( -10 ), &ok ), QString() );
   QCOMPARE( ok, false );
+
+  // with no flags set
+  filters = QgsFieldProxyModel::Filters();
+  QCOMPARE( qgsFlagValueToKeys( filters, &ok ), u"0"_s );
+  QCOMPARE( ok, true );
 }
 
 void TestQgis::testQgsFlagKeysToValue()
@@ -789,6 +800,13 @@ void TestQgis::testQgsFlagKeysToValue()
   // also try with an invalid int value
   QCOMPARE( qgsFlagKeysToValue( QString::number( -1 ), defaultValue, true, &ok ), defaultValue );
   QCOMPARE( ok, false );
+
+  // 0 = no flags set
+  QCOMPARE( qgsFlagKeysToValue( u"0"_s, defaultValue, true, &ok ), QgsFieldProxyModel::Filters() );
+  QCOMPARE( ok, true );
+  // "0" should work even if we aren't accepting ints
+  QCOMPARE( qgsFlagKeysToValue( u"0"_s, defaultValue, false, &ok ), QgsFieldProxyModel::Filters() );
+  QCOMPARE( ok, true );
 }
 
 void TestQgis::testQMapQVariantList()
@@ -853,6 +871,139 @@ void TestQgis::testQgsSetJoin()
   QVERIFY( res.contains( "5" ) );
 }
 
+void TestQgis::testDoubleNear_data()
+{
+  QTest::addColumn<double>( "a" );
+  QTest::addColumn<double>( "b" );
+  QTest::addColumn<double>( "epsilon" );
+  QTest::addColumn<bool>( "expected" );
+
+  const double eps = 4 * std::numeric_limits<double>::epsilon();
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  const double inf = std::numeric_limits<double>::infinity();
+
+  // negative epsilon means "don't specify, use default epsilon"
+  QTest::newRow( "exact equality" ) << 1.0 << 1.0 << -1.0 << true;
+  QTest::newRow( "within default epsilon" ) << 1.0 << 1.0 + eps / 2.0 << -1.0 << true;
+  QTest::newRow( "outside default epsilon" ) << 1.0 << 1.0 + eps * 2.0 << -1.0 << false;
+
+  QTest::newRow( "both NaN" ) << nan << nan << -1.0 << true;
+  QTest::newRow( "one NaN" ) << 1.0 << nan << -1.0 << false;
+  QTest::newRow( "other NaN" ) << nan << 1.0 << -1.0 << false;
+
+  QTest::newRow( "positive infinity equal" ) << inf << inf << -1.0 << true;
+  QTest::newRow( "negative infinity equal" ) << -inf << -inf << -1.0 << true;
+  QTest::newRow( "opposite infinities" ) << inf << -inf << -1.0 << false;
+}
+
+void TestQgis::testDoubleNear()
+{
+  QFETCH( double, a );
+  QFETCH( double, b );
+  QFETCH( double, epsilon );
+  QFETCH( bool, expected );
+
+  if ( epsilon < 0.0 )
+    QCOMPARE( qgsDoubleNear( a, b ), expected );
+  else
+    QCOMPARE( qgsDoubleNear( a, b, epsilon ), expected );
+}
+
+void TestQgis::testDoubleLessThanOrNear_data()
+{
+  QTest::addColumn<double>( "a" );
+  QTest::addColumn<double>( "b" );
+  QTest::addColumn<double>( "epsilon" );
+  QTest::addColumn<bool>( "expected" );
+
+  const double eps = 4 * std::numeric_limits<double>::epsilon();
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  const double inf = std::numeric_limits<double>::infinity();
+
+  // negative epsilon means "don't specify, use default epsilon"
+  QTest::newRow( "strict less" ) << 1.0 << 2.0 << -1.0 << true;
+  QTest::newRow( "strict greater" ) << 2.0 << 1.0 << -1.0 << false;
+  QTest::newRow( "exact equality" ) << 1.0 << 1.0 << -1.0 << true;
+
+  QTest::newRow( "slightly greater but near" ) << 1.0 + eps / 2.0 << 1.0 << -1.0 << true;
+  QTest::newRow( "slightly less and near" ) << 1.0 - eps / 2.0 << 1.0 << -1.0 << true;
+  QTest::newRow( "outside default epsilon" ) << 1.0 + eps * 2.0 << 1.0 << -1.0 << false;
+
+  QTest::newRow( "custom epsilon near" ) << 1.5 << 1.0 << 0.6 << true;
+  QTest::newRow( "custom epsilon not near" ) << 1.5 << 1.0 << 0.4 << false;
+  QTest::newRow( "custom epsilon less" ) << 0.5 << 1.0 << 0.6 << true;
+
+  QTest::newRow( "both NaN" ) << nan << nan << -1.0 << true;
+  QTest::newRow( "a is NaN" ) << nan << 1.0 << -1.0 << false;
+  QTest::newRow( "b is NaN" ) << 1.0 << nan << -1.0 << false;
+
+  QTest::newRow( "infinity less" ) << -inf << inf << -1.0 << true;
+  QTest::newRow( "infinity greater" ) << inf << -inf << -1.0 << false;
+
+  QTest::newRow( "positive infinity equal" ) << inf << inf << -1.0 << true;
+  QTest::newRow( "negative infinity equal" ) << -inf << -inf << -1.0 << true;
+}
+
+void TestQgis::testDoubleLessThanOrNear()
+{
+  QFETCH( double, a );
+  QFETCH( double, b );
+  QFETCH( double, epsilon );
+  QFETCH( bool, expected );
+
+  if ( epsilon < 0.0 )
+    QCOMPARE( qgsDoubleLessThanOrNear( a, b ), expected );
+  else
+    QCOMPARE( qgsDoubleLessThanOrNear( a, b, epsilon ), expected );
+}
+
+void TestQgis::testDoubleGreaterThanOrNear_data()
+{
+  QTest::addColumn<double>( "a" );
+  QTest::addColumn<double>( "b" );
+  QTest::addColumn<double>( "epsilon" );
+  QTest::addColumn<bool>( "expected" );
+
+  const double eps = 4 * std::numeric_limits<double>::epsilon();
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  const double inf = std::numeric_limits<double>::infinity();
+
+  // negative epsilon means "don't specify, use default epsilon"
+  QTest::newRow( "strict greater" ) << 2.0 << 1.0 << -1.0 << true;
+  QTest::newRow( "strict less" ) << 1.0 << 2.0 << -1.0 << false;
+  QTest::newRow( "exact equality" ) << 1.0 << 1.0 << -1.0 << true;
+
+  QTest::newRow( "slightly less but near" ) << 1.0 - eps / 2.0 << 1.0 << -1.0 << true;
+  QTest::newRow( "slightly greater and near" ) << 1.0 + eps / 2.0 << 1.0 << -1.0 << true;
+  QTest::newRow( "outside default epsilon" ) << 1.0 - eps * 2.0 << 1.0 << -1.0 << false;
+
+  QTest::newRow( "custom epsilon near" ) << 1.0 << 1.5 << 0.6 << true;
+  QTest::newRow( "custom epsilon not near" ) << 1.0 << 1.5 << 0.4 << false;
+  QTest::newRow( "custom epsilon greater" ) << 2.0 << 1.5 << 0.4 << true;
+
+  QTest::newRow( "both NaN" ) << nan << nan << -1.0 << true;
+  QTest::newRow( "a is NaN" ) << nan << 1.0 << -1.0 << false;
+  QTest::newRow( "b is NaN" ) << 1.0 << nan << -1.0 << false;
+
+  QTest::newRow( "infinity greater" ) << inf << -inf << -1.0 << true;
+  QTest::newRow( "infinity less" ) << -inf << inf << -1.0 << false;
+
+  QTest::newRow( "positive infinity equal" ) << inf << inf << -1.0 << true;
+  QTest::newRow( "negative infinity equal" ) << -inf << -inf << -1.0 << true;
+}
+
+void TestQgis::testDoubleGreaterThanOrNear()
+{
+  QFETCH( double, a );
+  QFETCH( double, b );
+  QFETCH( double, epsilon );
+  QFETCH( bool, expected );
+
+  if ( epsilon < 0.0 )
+    QCOMPARE( qgsDoubleGreaterThanOrNear( a, b ), expected );
+  else
+    QCOMPARE( qgsDoubleGreaterThanOrNear( a, b, epsilon ), expected );
+}
 
 QGSTEST_MAIN( TestQgis )
 #include "testqgis.moc"

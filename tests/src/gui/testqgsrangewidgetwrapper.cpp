@@ -74,11 +74,6 @@ class TestQgsRangeWidgetWrapper : public QObject
 
 void TestQgsRangeWidgetWrapper::initTestCase()
 {
-  // Set up the QgsSettings environment
-  QCoreApplication::setOrganizationName( u"QGIS"_s );
-  QCoreApplication::setOrganizationDomain( u"qgis.org"_s );
-  QCoreApplication::setApplicationName( u"QGIS-TEST-RANGE-WIDGET"_s );
-
   QgsApplication::init();
   QgsApplication::initQgis();
 }
@@ -142,8 +137,7 @@ void TestQgsRangeWidgetWrapper::init()
 }
 
 void TestQgsRangeWidgetWrapper::cleanup()
-{
-}
+{}
 
 void TestQgsRangeWidgetWrapper::test_setDoubleRange()
 {

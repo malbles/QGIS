@@ -382,6 +382,61 @@ void QgsSimpleLineSymbolLayer::renderPolygonStroke( const QPolygonF &points, con
   }
 }
 
+/**
+ * trim \a points according to start and end trim distance based on data defined properties and
+ * render context
+ */
+void trimPoints(
+  QPolygonF &points,
+  double startTrim,
+  double endTrim,
+  Qgis::RenderUnit trimDistanceStartUnit,
+  Qgis::RenderUnit trimDistanceEndUnit,
+  const QgsMapUnitScale &trimDistanceStartMapUnitScale,
+  const QgsMapUnitScale &trimDistanceEndMapUnitScale,
+  const QgsPropertyCollection &mDataDefinedProperties,
+  QgsSymbolRenderContext &context
+)
+{
+  if ( mDataDefinedProperties.isActive( QgsSymbolLayer::Property::TrimStart ) )
+  {
+    context.setOriginalValueVariable( startTrim );
+    startTrim = mDataDefinedProperties.valueAsDouble( QgsSymbolLayer::Property::TrimStart, context.renderContext().expressionContext(), startTrim );
+  }
+
+  if ( mDataDefinedProperties.isActive( QgsSymbolLayer::Property::TrimEnd ) )
+  {
+    context.setOriginalValueVariable( endTrim );
+    endTrim = mDataDefinedProperties.valueAsDouble( QgsSymbolLayer::Property::TrimEnd, context.renderContext().expressionContext(), endTrim );
+  }
+
+  double totalLength = -1;
+  if ( trimDistanceStartUnit == Qgis::RenderUnit::Percentage )
+  {
+    totalLength = QgsSymbolLayerUtils::polylineLength( points );
+    startTrim = startTrim * 0.01 * totalLength;
+  }
+  else
+  {
+    startTrim = context.renderContext().convertToPainterUnits( startTrim, trimDistanceStartUnit, trimDistanceStartMapUnitScale );
+  }
+  if ( trimDistanceEndUnit == Qgis::RenderUnit::Percentage )
+  {
+    if ( totalLength < 0 ) // only recalculate if we didn't already work this out for the start distance!
+      totalLength = QgsSymbolLayerUtils::polylineLength( points );
+    endTrim = endTrim * 0.01 * totalLength;
+  }
+  else
+  {
+    endTrim = context.renderContext().convertToPainterUnits( endTrim, trimDistanceEndUnit, trimDistanceEndMapUnitScale );
+  }
+  if ( !qgsDoubleNear( startTrim, 0 ) || !qgsDoubleNear( endTrim, 0 ) )
+  {
+    points = QgsSymbolLayerUtils::polylineSubstring( points, startTrim, -endTrim );
+  }
+}
+
+
 void QgsSimpleLineSymbolLayer::renderPolyline( const QPolygonF &pts, QgsSymbolRenderContext &context )
 {
   QPainter *p = context.renderContext().painter();
@@ -391,44 +446,7 @@ void QgsSimpleLineSymbolLayer::renderPolyline( const QPolygonF &pts, QgsSymbolRe
   }
 
   QPolygonF points = pts;
-
-  double startTrim = mTrimDistanceStart;
-  if ( mDataDefinedProperties.isActive( QgsSymbolLayer::Property::TrimStart ) )
-  {
-    context.setOriginalValueVariable( startTrim );
-    startTrim = mDataDefinedProperties.valueAsDouble( QgsSymbolLayer::Property::TrimStart, context.renderContext().expressionContext(), mTrimDistanceStart );
-  }
-  double endTrim = mTrimDistanceEnd;
-  if ( mDataDefinedProperties.isActive( QgsSymbolLayer::Property::TrimEnd ) )
-  {
-    context.setOriginalValueVariable( endTrim );
-    endTrim = mDataDefinedProperties.valueAsDouble( QgsSymbolLayer::Property::TrimEnd, context.renderContext().expressionContext(), mTrimDistanceEnd );
-  }
-
-  double totalLength = -1;
-  if ( mTrimDistanceStartUnit == Qgis::RenderUnit::Percentage )
-  {
-    totalLength = QgsSymbolLayerUtils::polylineLength( points );
-    startTrim = startTrim * 0.01 * totalLength;
-  }
-  else
-  {
-    startTrim = context.renderContext().convertToPainterUnits( startTrim, mTrimDistanceStartUnit, mTrimDistanceStartMapUnitScale );
-  }
-  if ( mTrimDistanceEndUnit == Qgis::RenderUnit::Percentage )
-  {
-    if ( totalLength < 0 ) // only recalculate if we didn't already work this out for the start distance!
-      totalLength = QgsSymbolLayerUtils::polylineLength( points );
-    endTrim = endTrim * 0.01 * totalLength;
-  }
-  else
-  {
-    endTrim = context.renderContext().convertToPainterUnits( endTrim, mTrimDistanceEndUnit, mTrimDistanceEndMapUnitScale );
-  }
-  if ( !qgsDoubleNear( startTrim, 0 ) || !qgsDoubleNear( endTrim, 0 ) )
-  {
-    points = QgsSymbolLayerUtils::polylineSubstring( points, startTrim, -endTrim );
-  }
+  trimPoints( points, mTrimDistanceStart, mTrimDistanceEnd, mTrimDistanceStartUnit, mTrimDistanceEndUnit, mTrimDistanceStartMapUnitScale, mTrimDistanceEndMapUnitScale, mDataDefinedProperties, context );
 
   QColor penColor = mColor;
   penColor.setAlphaF( mColor.alphaF() * context.opacity() );
@@ -1102,7 +1120,7 @@ Qt::PenStyle QgsSimpleLineSymbolLayer::dxfPenStyle() const
   return mPenStyle;
 }
 
-double QgsSimpleLineSymbolLayer::dxfWidth( const QgsDxfExport &e, QgsSymbolRenderContext &context ) const
+double QgsSimpleLineSymbolLayer::dxfWidth( QgsSymbolRenderContext &context ) const
 {
   double width = mWidth;
   if ( mDataDefinedProperties.isActive( QgsSymbolLayer::Property::StrokeWidth ) )
@@ -1111,12 +1129,7 @@ double QgsSimpleLineSymbolLayer::dxfWidth( const QgsDxfExport &e, QgsSymbolRende
     width = mDataDefinedProperties.valueAsDouble( QgsSymbolLayer::Property::StrokeWidth, context.renderContext().expressionContext(), mWidth );
   }
 
-  width *= QgsDxfExport::mapUnitScaleFactor( e.symbologyScale(), widthUnit(), e.mapUnits(), context.renderContext().mapToPixel().mapUnitsPerPixel() );
-  if ( mWidthUnit == Qgis::RenderUnit::MapUnits )
-  {
-    e.clipValueToMapUnitScale( width, mWidthMapUnitScale, context.renderContext().scaleFactor() );
-  }
-  return width;
+  return context.renderContext().convertToMapUnits( width, widthUnit(), mWidthMapUnitScale );
 }
 
 QColor QgsSimpleLineSymbolLayer::dxfColor( QgsSymbolRenderContext &context ) const
@@ -1154,7 +1167,7 @@ void QgsSimpleLineSymbolLayer::setTweakDashPatternOnCorners( bool enabled )
   mPatternCartographicTweakOnSharpCorners = enabled;
 }
 
-double QgsSimpleLineSymbolLayer::dxfOffset( const QgsDxfExport &e, QgsSymbolRenderContext &context ) const
+double QgsSimpleLineSymbolLayer::dxfOffset( QgsSymbolRenderContext &context ) const
 {
   double offset = mOffset;
 
@@ -1164,11 +1177,7 @@ double QgsSimpleLineSymbolLayer::dxfOffset( const QgsDxfExport &e, QgsSymbolRend
     offset = mDataDefinedProperties.valueAsDouble( QgsSymbolLayer::Property::Offset, context.renderContext().expressionContext(), mOffset );
   }
 
-  offset *= QgsDxfExport::mapUnitScaleFactor( e.symbologyScale(), offsetUnit(), e.mapUnits(), context.renderContext().mapToPixel().mapUnitsPerPixel() );
-  if ( mOffsetUnit == Qgis::RenderUnit::MapUnits )
-  {
-    e.clipValueToMapUnitScale( offset, mOffsetMapUnitScale, context.renderContext().scaleFactor() );
-  }
+  offset = context.renderContext().convertToMapUnits( offset, offsetUnit(), mOffsetMapUnitScale );
   return -offset; //direction seems to be inverse to symbology offset
 }
 
@@ -1209,7 +1218,7 @@ void QgsTemplatedLineSymbolLayerBase::setPlacement( Qgis::MarkerLinePlacement pl
 
 QgsTemplatedLineSymbolLayerBase::~QgsTemplatedLineSymbolLayerBase() = default;
 
-void QgsTemplatedLineSymbolLayerBase::renderPolyline( const QPolygonF &points, QgsSymbolRenderContext &context )
+void QgsTemplatedLineSymbolLayerBase::renderPolyline( const QPolygonF &pts, QgsSymbolRenderContext &context )
 {
   const bool useSelectedColor = shouldRenderUsingSelectionColor( context );
   if ( mRenderingFeature )
@@ -1285,12 +1294,12 @@ void QgsTemplatedLineSymbolLayerBase::renderPolyline( const QPolygonF &points, Q
   }
   averageOver = context.renderContext().convertToPainterUnits( averageOver, mAverageAngleLengthUnit, mAverageAngleLengthMapUnitScale ) / 2.0;
 
-  QgsBlankSegmentUtils::BlankSegments blankSegments;
+  QgsSymbolLayerUtils::BlankSegments blankSegments;
   if ( mDataDefinedProperties.isActive( QgsSymbolLayer::Property::BlankSegments ) )
   {
     const QString strBlankSegments = mDataDefinedProperties.valueAsString( QgsSymbolLayer::Property::BlankSegments, context.renderContext().expressionContext() );
     QString error;
-    QList<QList<QgsBlankSegmentUtils::BlankSegments>> allBlankSegments = QgsBlankSegmentUtils::parseBlankSegments( strBlankSegments, context.renderContext(), blankSegmentsUnit(), error );
+    QList<QList<QgsSymbolLayerUtils::BlankSegments>> allBlankSegments = QgsSymbolLayerUtils::parseBlankSegments( strBlankSegments, context.renderContext(), blankSegmentsUnit(), error );
 
     if ( !error.isEmpty() )
     {
@@ -1306,6 +1315,9 @@ void QgsTemplatedLineSymbolLayerBase::renderPolyline( const QPolygonF &points, Q
       }
     }
   }
+
+  QPolygonF points = pts;
+  trimPoints( points, mTrimDistanceStart, mTrimDistanceEnd, mTrimDistanceStartUnit, mTrimDistanceEndUnit, mTrimDistanceStartMapUnitScale, mTrimDistanceEndMapUnitScale, mDataDefinedProperties, context );
 
   if ( qgsDoubleNear( offset, 0.0 ) )
   {
@@ -1360,6 +1372,31 @@ void QgsTemplatedLineSymbolLayerBase::renderPolyline( const QPolygonF &points, Q
         renderPolylineVertex( points2, context, Qgis::MarkerLinePlacement::SegmentCenter, blankSegments );
     }
   }
+
+  QgsSymbolLayerUtils::ExtraItems extraItems;
+  if ( !mBlockExtraItemsRendering && mDataDefinedProperties.isActive( QgsSymbolLayer::Property::ExtraItems ) )
+  {
+    const QString strExtraItems = mDataDefinedProperties.valueAsString( QgsSymbolLayer::Property::ExtraItems, context.renderContext().expressionContext() );
+    QString error;
+    extraItems = QgsSymbolLayerUtils::parseExtraItems( strExtraItems, error );
+
+    if ( !error.isEmpty() )
+    {
+      QgsDebugError( u"Badly formatted extra items '%1', skip it: %2"_s.arg( strExtraItems ).arg( error ) );
+    }
+    else
+    {
+      const QgsMapToPixel &mtp = context.renderContext().mapToPixel();
+      for ( std::pair<QPointF, double> &extraItem : extraItems )
+      {
+        mtp.transformInPlace( extraItem.first.rx(), extraItem.first.ry() );
+
+        setSymbolLineAngle( extraItem.second );
+
+        renderSymbol( extraItem.first, context.feature(), context.renderContext(), -1, shouldRenderUsingSelectionColor( context ) );
+      }
+    }
+  }
 }
 
 void QgsTemplatedLineSymbolLayerBase::renderPolygonStroke( const QPolygonF &points, const QVector<QPolygonF> *rings, QgsSymbolRenderContext &context )
@@ -1388,6 +1425,7 @@ void QgsTemplatedLineSymbolLayerBase::renderPolygonStroke( const QPolygonF &poin
         scope->addVariable( QgsExpressionContextScope::StaticVariable( QgsExpressionContext::EXPR_GEOMETRY_RING_NUM, 0, true ) );
 
       renderPolyline( points, context );
+      mBlockExtraItemsRendering = true; // render extra items only once
       break;
     }
     case InteriorRingsOnly:
@@ -1413,6 +1451,7 @@ void QgsTemplatedLineSymbolLayerBase::renderPolygonStroke( const QPolygonF &poin
             scope->addVariable( QgsExpressionContextScope::StaticVariable( QgsExpressionContext::EXPR_GEOMETRY_RING_NUM, i + 1, true ) );
 
           renderPolyline( rings->at( i ), context );
+          mBlockExtraItemsRendering = true; // render extra items only once
         }
         mOffset = -mOffset;
         mRingIndex = 0;
@@ -1422,6 +1461,8 @@ void QgsTemplatedLineSymbolLayerBase::renderPolygonStroke( const QPolygonF &poin
         break;
     }
   }
+
+  mBlockExtraItemsRendering = false;
 }
 
 Qgis::RenderUnit QgsTemplatedLineSymbolLayerBase::outputUnit() const
@@ -1475,6 +1516,12 @@ QVariantMap QgsTemplatedLineSymbolLayerBase::properties() const
   map[u"average_angle_length"_s] = QString::number( mAverageAngleLength );
   map[u"average_angle_unit"_s] = QgsUnitTypes::encodeUnit( mAverageAngleLengthUnit );
   map[u"average_angle_map_unit_scale"_s] = QgsSymbolLayerUtils::encodeMapUnitScale( mAverageAngleLengthMapUnitScale );
+  map[u"trim_distance_start"_s] = QString::number( mTrimDistanceStart );
+  map[u"trim_distance_start_unit"_s] = QgsUnitTypes::encodeUnit( mTrimDistanceStartUnit );
+  map[u"trim_distance_start_map_unit_scale"_s] = QgsSymbolLayerUtils::encodeMapUnitScale( mTrimDistanceStartMapUnitScale );
+  map[u"trim_distance_end"_s] = QString::number( mTrimDistanceEnd );
+  map[u"trim_distance_end_unit"_s] = QgsUnitTypes::encodeUnit( mTrimDistanceEndUnit );
+  map[u"trim_distance_end_map_unit_scale"_s] = QgsSymbolLayerUtils::encodeMapUnitScale( mTrimDistanceEndMapUnitScale );
   map[u"blank_segments_unit"_s] = QgsUnitTypes::encodeUnit( mBlankSegmentsUnit );
 
   map[u"placements"_s] = qgsFlagValueToKeys( mPlacements );
@@ -1538,6 +1585,12 @@ void QgsTemplatedLineSymbolLayerBase::copyTemplateSymbolProperties( QgsTemplated
   destLayer->setBlankSegmentsUnit( mBlankSegmentsUnit );
   destLayer->setRingFilter( mRingFilter );
   destLayer->setPlaceOnEveryPart( mPlaceOnEveryPart );
+  destLayer->setTrimDistanceStart( mTrimDistanceStart );
+  destLayer->setTrimDistanceStartUnit( mTrimDistanceStartUnit );
+  destLayer->setTrimDistanceStartMapUnitScale( mTrimDistanceStartMapUnitScale );
+  destLayer->setTrimDistanceEnd( mTrimDistanceEnd );
+  destLayer->setTrimDistanceEndUnit( mTrimDistanceEndUnit );
+  destLayer->setTrimDistanceEndMapUnitScale( mTrimDistanceEndMapUnitScale );
 
   copyCommonProperties( destLayer );
 }
@@ -1595,6 +1648,19 @@ void QgsTemplatedLineSymbolLayerBase::setCommonProperties( QgsTemplatedLineSymbo
     destLayer->setBlankSegmentsUnit( QgsUnitTypes::decodeRenderUnit( properties[u"blank_segments_unit"_s].toString() ) );
   }
 
+  if ( properties.contains( u"trim_distance_start"_s ) )
+    destLayer->setTrimDistanceStart( properties[u"trim_distance_start"_s].toDouble() );
+  if ( properties.contains( u"trim_distance_start_unit"_s ) )
+    destLayer->setTrimDistanceStartUnit( QgsUnitTypes::decodeRenderUnit( properties[u"trim_distance_start_unit"_s].toString() ) );
+  if ( properties.contains( u"trim_distance_start_map_unit_scale"_s ) )
+    destLayer->setTrimDistanceStartMapUnitScale( QgsSymbolLayerUtils::decodeMapUnitScale( properties[u"trim_distance_start_map_unit_scale"_s].toString() ) );
+  if ( properties.contains( u"trim_distance_end"_s ) )
+    destLayer->setTrimDistanceEnd( properties[u"trim_distance_end"_s].toDouble() );
+  if ( properties.contains( u"trim_distance_end_unit"_s ) )
+    destLayer->setTrimDistanceEndUnit( QgsUnitTypes::decodeRenderUnit( properties[u"trim_distance_end_unit"_s].toString() ) );
+  if ( properties.contains( u"trim_distance_end_map_unit_scale"_s ) )
+    destLayer->setTrimDistanceEndMapUnitScale( QgsSymbolLayerUtils::decodeMapUnitScale( properties[u"trim_distance_end_map_unit_scale"_s].toString() ) );
+
   if ( properties.contains( u"placement"_s ) )
   {
     if ( properties[u"placement"_s] == "vertex"_L1 )
@@ -1637,7 +1703,7 @@ void QgsTemplatedLineSymbolLayerBase::setCommonProperties( QgsTemplatedLineSymbo
 class BlankSegmentsWalker
 {
   public:
-    BlankSegmentsWalker( const QPolygonF &points, const QgsBlankSegmentUtils::BlankSegments &blankSegments )
+    BlankSegmentsWalker( const QPolygonF &points, const QgsSymbolLayerUtils::BlankSegments &blankSegments )
       : mBlankSegments( blankSegments )
       , mPoints( points )
       , mItBlankSegment( blankSegments.cbegin() )
@@ -1683,17 +1749,17 @@ class BlankSegmentsWalker
     }
 
   private:
-    const QgsBlankSegmentUtils::BlankSegments &mBlankSegments;
+    const QgsSymbolLayerUtils::BlankSegments &mBlankSegments;
     const QPolygonF &mPoints;
     QList<double> mDistances;
-    QgsBlankSegmentUtils::BlankSegments::const_iterator mItBlankSegment;
+    QgsSymbolLayerUtils::BlankSegments::const_iterator mItBlankSegment;
 };
 
 
 ///@endcond PRIVATE
 
 
-void QgsTemplatedLineSymbolLayerBase::renderPolylineInterval( const QPolygonF &points, QgsSymbolRenderContext &context, double averageOver, const QgsBlankSegmentUtils::BlankSegments &blankSegments )
+void QgsTemplatedLineSymbolLayerBase::renderPolylineInterval( const QPolygonF &points, QgsSymbolRenderContext &context, double averageOver, const QgsSymbolLayerUtils::BlankSegments &blankSegments )
 {
   if ( points.isEmpty() )
     return;
@@ -1917,7 +1983,7 @@ static double _averageAngle( QPointF prevPt, QPointF pt, QPointF nextPt )
 }
 
 void QgsTemplatedLineSymbolLayerBase::renderPolylineVertex(
-  const QPolygonF &points, QgsSymbolRenderContext &context, Qgis::MarkerLinePlacement placement, const QgsBlankSegmentUtils::BlankSegments &blankSegments
+  const QPolygonF &points, QgsSymbolRenderContext &context, Qgis::MarkerLinePlacement placement, const QgsSymbolLayerUtils::BlankSegments &blankSegments
 )
 {
   if ( points.isEmpty() )
@@ -2204,7 +2270,7 @@ double QgsTemplatedLineSymbolLayerBase::markerAngle( const QPolygonF &points, bo
 }
 
 void QgsTemplatedLineSymbolLayerBase::renderOffsetVertexAlongLine(
-  const QPolygonF &points, int vertex, double distance, QgsSymbolRenderContext &context, Qgis::MarkerLinePlacement placement, const QgsBlankSegmentUtils::BlankSegments &blankSegments
+  const QPolygonF &points, int vertex, double distance, QgsSymbolRenderContext &context, Qgis::MarkerLinePlacement placement, const QgsSymbolLayerUtils::BlankSegments &blankSegments
 )
 {
   if ( points.isEmpty() )
@@ -2382,7 +2448,7 @@ void QgsTemplatedLineSymbolLayerBase::collectOffsetPoints(
   }
 }
 
-void QgsTemplatedLineSymbolLayerBase::renderPolylineCentral( const QPolygonF &points, QgsSymbolRenderContext &context, double averageAngleOver, const QgsBlankSegmentUtils::BlankSegments &blankSegments )
+void QgsTemplatedLineSymbolLayerBase::renderPolylineCentral( const QPolygonF &points, QgsSymbolRenderContext &context, double averageAngleOver, const QgsSymbolLayerUtils::BlankSegments &blankSegments )
 {
   if ( !points.isEmpty() )
   {
@@ -4055,7 +4121,7 @@ void QgsFilledLineSymbolLayer::renderPolyline( const QPolygonF &points, QgsSymbo
       {
         auto inputPoly = std::make_unique< QgsPolygon >( static_cast< QgsLineString * >( ls.release() ) );
         geos::unique_ptr g( QgsGeos::asGeos( inputPoly.get() ) );
-        lineGeom = QgsGeos::buffer( g.get(), -scaledOffset, 0, Qgis::EndCapStyle::Flat, Qgis::JoinStyle::Miter, 2 );
+        lineGeom = QgsGeos::buffer( g.get(), -scaledOffset, 0, Qgis::EndCapStyle::Flat, Qgis::JoinStyle::Miter, 2, nullptr, context.renderContext().feedback() );
         // the result is a polygon => extract line work
         QgsGeometry polygon( QgsGeos::fromGeos( lineGeom.get() ) );
         QVector<QgsGeometry> parts = polygon.coerceToType( Qgis::WkbType::MultiLineString );
@@ -4081,7 +4147,8 @@ void QgsFilledLineSymbolLayer::renderPolyline( const QPolygonF &points, QgsSymbo
 
     if ( lineGeom )
     {
-      geos::unique_ptr buffered = QgsGeos::buffer( lineGeom.get(), scaledWidth / 2, 8, QgsSymbolLayerUtils::penCapStyleToEndCapStyle( cap ), QgsSymbolLayerUtils::penJoinStyleToJoinStyle( join ), 8 );
+      geos::unique_ptr buffered = QgsGeos::
+        buffer( lineGeom.get(), scaledWidth / 2, 8, QgsSymbolLayerUtils::penCapStyleToEndCapStyle( cap ), QgsSymbolLayerUtils::penJoinStyleToJoinStyle( join ), 8, nullptr, context.renderContext().feedback() );
       if ( buffered )
       {
         // convert to rings

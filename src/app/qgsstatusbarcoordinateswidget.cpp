@@ -211,7 +211,9 @@ void QgsStatusBarCoordinatesWidget::validateCoordinates()
 
   const Qgis::CoordinateOrder projectAxisOrder = QgsProject::instance()->displaySettings()->coordinateAxisOrder();
 
-  const Qgis::CoordinateOrder coordinateOrder = projectAxisOrder == Qgis::CoordinateOrder::Default ? QgsCoordinateReferenceSystemUtils::defaultCoordinateOrderForCrs( mMapCanvas->mapSettings().destinationCrs() ) : projectAxisOrder;
+  const Qgis::CoordinateOrder coordinateOrder = projectAxisOrder == Qgis::CoordinateOrder::Default
+                                                  ? QgsCoordinateReferenceSystemUtils::defaultCoordinateOrderForCrs( mMapCanvas->mapSettings().destinationCrs() )
+                                                  : projectAxisOrder;
   // we may need to flip coordinates depending on crs axis ordering
   switch ( coordinateOrder )
   {
@@ -433,7 +435,7 @@ void QgsStatusBarCoordinatesWidget::updateCoordinateDisplay()
     return;
   }
 
-  if ( mLastCoordinate.isEmpty() )
+  if ( mLastCoordinate.isEmpty() || !QgsProject::instance()->crs().isSameCelestialBody( mLastCoordinateCrs ) )
     mLineEdit->clear();
   else
     mLineEdit->setText( QgsCoordinateUtils::formatCoordinateForProject( QgsProject::instance(), mLastCoordinate, mLastCoordinateCrs, static_cast<int>( mMousePrecisionDecimalPlaces ) ) );
@@ -446,9 +448,7 @@ void QgsStatusBarCoordinatesWidget::coordinateDisplaySettingsChanged()
   const QgsCoordinateReferenceSystem coordinateCrs = QgsProject::instance()->displaySettings()->coordinateCrs();
 
   const Qgis::CoordinateOrder projectOrder = QgsProject::instance()->displaySettings()->coordinateAxisOrder();
-  const Qgis::CoordinateOrder order = projectOrder == Qgis::CoordinateOrder::Default
-                                        ? QgsCoordinateReferenceSystemUtils::defaultCoordinateOrderForCrs( coordinateCrs )
-                                        : projectOrder;
+  const Qgis::CoordinateOrder order = projectOrder == Qgis::CoordinateOrder::Default ? QgsCoordinateReferenceSystemUtils::defaultCoordinateOrderForCrs( coordinateCrs ) : projectOrder;
 
   switch ( order )
   {

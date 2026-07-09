@@ -43,18 +43,22 @@ QStringList QgsServiceAreaFromPointAlgorithm::tags() const
 
 QString QgsServiceAreaFromPointAlgorithm::shortHelpString() const
 {
-  return QObject::tr( "This algorithm creates a new vector layer with all the edges or parts of edges "
-                      "of a network line layer that can be reached within a distance or a time, "
-                      "starting from a point feature. The distance and the time (both referred to "
-                      "as \"travel cost\") must be specified respectively in the network layer "
-                      "units or in hours." );
+  return QObject::tr(
+    "This algorithm creates a new vector layer with all the edges or parts of edges "
+    "of a network line layer that can be reached within a distance or a time, "
+    "starting from a point feature. The distance and the time (both referred to "
+    "as \"travel cost\") must be specified respectively in the network layer "
+    "units or in hours."
+  );
 }
 
 QString QgsServiceAreaFromPointAlgorithm::shortDescription() const
 {
-  return QObject::tr( "Creates a vector layer with all the edges or parts of edges "
-                      "of a network line layer that can be reached within a distance or a time, "
-                      "starting from a point feature." );
+  return QObject::tr(
+    "Creates a vector layer with all the edges or parts of edges "
+    "of a network line layer that can be reached within a distance or a time, "
+    "starting from a point feature."
+  );
 }
 
 QgsServiceAreaFromPointAlgorithm *QgsServiceAreaFromPointAlgorithm::createInstance() const
@@ -67,15 +71,21 @@ void QgsServiceAreaFromPointAlgorithm::initAlgorithm( const QVariantMap & )
   addCommonParams();
   addParameter( new QgsProcessingParameterPoint( u"START_POINT"_s, QObject::tr( "Start point" ) ) );
 
-  auto travelCost = std::make_unique<QgsProcessingParameterNumber>( u"TRAVEL_COST"_s, QObject::tr( "Travel cost (distance for 'Shortest', time for 'Fastest')" ), Qgis::ProcessingNumberParameterType::Double, 0, true, 0 );
+  auto travelCost
+    = std::make_unique<QgsProcessingParameterNumber>( u"TRAVEL_COST"_s, QObject::tr( "Travel cost (distance for 'Shortest', time for 'Fastest')" ), Qgis::ProcessingNumberParameterType::Double, 0, true, 0 );
   travelCost->setFlags( travelCost->flags() | Qgis::ProcessingParameterFlag::Hidden );
   addParameter( travelCost.release() );
 
-  addParameter( new QgsProcessingParameterNumber( u"TRAVEL_COST2"_s, QObject::tr( "Travel cost (distance for 'Shortest', time for 'Fastest')" ), Qgis::ProcessingNumberParameterType::Double, 0, false, 0 ) );
+  addParameter(
+    new QgsProcessingParameterNumber( u"TRAVEL_COST2"_s, QObject::tr( "Travel cost (distance for 'Shortest', time for 'Fastest')" ), Qgis::ProcessingNumberParameterType::Double, 0, false, 0 )
+  );
 
-  std::unique_ptr<QgsProcessingParameterNumber> maxPointDistanceFromNetwork = std::make_unique<QgsProcessingParameterDistance>( u"POINT_TOLERANCE"_s, QObject::tr( "Maximum point distance from network" ), QVariant(), u"INPUT"_s, true, 0 );
+  std::unique_ptr<QgsProcessingParameterNumber> maxPointDistanceFromNetwork
+    = std::make_unique<QgsProcessingParameterDistance>( u"POINT_TOLERANCE"_s, QObject::tr( "Maximum point distance from network" ), QVariant(), u"INPUT"_s, true, 0 );
   maxPointDistanceFromNetwork->setFlags( maxPointDistanceFromNetwork->flags() | Qgis::ProcessingParameterFlag::Advanced );
-  maxPointDistanceFromNetwork->setHelp( QObject::tr( "Specifies an optional limit on the distance from the point to the network layer. If the point is further from the network than this distance an error will be raised." ) );
+  maxPointDistanceFromNetwork->setHelp(
+    QObject::tr( "Specifies an optional limit on the distance from the point to the network layer. If the point is further from the network than this distance an error will be raised." )
+  );
   addParameter( maxPointDistanceFromNetwork.release() );
 
   auto includeBounds = std::make_unique<QgsProcessingParameterBoolean>( u"INCLUDE_BOUNDS"_s, QObject::tr( "Include upper/lower bound points" ), false, true );
@@ -230,6 +240,8 @@ QVariantMap QgsServiceAreaFromPointAlgorithm::processAlgorithm( const QVariantMa
     feat.setAttributes( QgsAttributes() << u"within"_s << startPoint.toString() );
     if ( !pointsSink->addFeature( feat, QgsFeatureSink::FastInsert ) )
       throw QgsProcessingException( writeFeatureError( pointsSink.get(), parameters, u"OUTPUT"_s ) );
+    else
+      feedback->featureAddedToSink( u"OUTPUT"_s );
 
     if ( includeBounds )
     {
@@ -264,14 +276,19 @@ QVariantMap QgsServiceAreaFromPointAlgorithm::processAlgorithm( const QVariantMa
       feat.setAttributes( QgsAttributes() << u"upper"_s << startPoint.toString() );
       if ( !pointsSink->addFeature( feat, QgsFeatureSink::FastInsert ) )
         throw QgsProcessingException( writeFeatureError( pointsSink.get(), parameters, u"OUTPUT"_s ) );
+      else
+        feedback->featureAddedToSink( u"OUTPUT"_s );
 
       feat.setGeometry( geomLower );
       feat.setAttributes( QgsAttributes() << u"lower"_s << startPoint.toString() );
       if ( !pointsSink->addFeature( feat, QgsFeatureSink::FastInsert ) )
         throw QgsProcessingException( writeFeatureError( pointsSink.get(), parameters, u"OUTPUT"_s ) );
+      else
+        feedback->featureAddedToSink( u"OUTPUT"_s );
     } // includeBounds
 
     pointsSink->finalize();
+    feedback->featureSinkFinalized( u"OUTPUT"_s );
   }
 
   QString linesSinkId;
@@ -285,7 +302,10 @@ QVariantMap QgsServiceAreaFromPointAlgorithm::processAlgorithm( const QVariantMa
     feat.setAttributes( QgsAttributes() << u"lines"_s << startPoint.toString() );
     if ( !linesSink->addFeature( feat, QgsFeatureSink::FastInsert ) )
       throw QgsProcessingException( writeFeatureError( linesSink.get(), parameters, u"OUTPUT_LINES"_s ) );
+    else
+      feedback->featureAddedToSink( u"OUTPUT_LINES"_s );
     linesSink->finalize();
+    feedback->featureSinkFinalized( u"OUTPUT_LINES"_s );
   }
 
   return outputs;

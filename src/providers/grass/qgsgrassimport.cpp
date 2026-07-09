@@ -50,8 +50,7 @@ QgsGrassImportIcon *QgsGrassImportIcon::instance()
 
 QgsGrassImportIcon::QgsGrassImportIcon()
   : QgsAnimatedIcon( QgsApplication::iconPath( u"/mIconImport.gif"_s ) )
-{
-}
+{}
 
 //------------------------------ QgsGrassImportProcess ------------------------------------
 QgsGrassImportProgress::QgsGrassImportProgress( QProcess *process, QObject *parent )
@@ -198,8 +197,7 @@ QgsGrassRasterImport::QgsGrassRasterImport( std::unique_ptr<QgsRasterPipe> pipe,
   , mExtent( extent )
   , mXSize( xSize )
   , mYSize( ySize )
-{
-}
+{}
 
 QgsGrassRasterImport::~QgsGrassRasterImport()
 {
@@ -260,9 +258,6 @@ bool QgsGrassRasterImport::import()
     }
 
     Qgis::DataType qgis_out_type = Qgis::DataType::UnknownDataType;
-#ifdef QGISDEBUG
-    RASTER_MAP_TYPE data_type = -1;
-#endif
     switch ( provider->dataType( band ) )
     {
       case Qgis::DataType::Byte:
@@ -291,8 +286,6 @@ bool QgsGrassRasterImport::import()
         setError( tr( "Data type %1 not supported" ).arg( static_cast<int>( provider->dataType( band ) ) ) );
         return false;
     }
-
-    QgsDebugMsgLevel( QString( "data_type = %1" ).arg( data_type ), 3 );
 
     QString module = QgsGrass::qgisGrassModulePath() + "/qgis.r.in";
     QStringList arguments;
@@ -435,8 +428,7 @@ bool QgsGrassRasterImport::import()
 
 #ifdef QGISDEBUG
     QString stdoutString = mProcess->readAllStandardOutput().constData();
-    QString processResult = u"exitStatus=%1, exitCode=%2, error=%3, errorString=%4 stdout=%5, stderr=%6"_s
-                              .arg( mProcess->exitStatus() )
+    QString processResult = u"exitStatus=%1, exitCode=%2, error=%3, errorString=%4 stdout=%5, stderr=%6"_s.arg( mProcess->exitStatus() )
                               .arg( mProcess->exitCode() )
                               .arg( mProcess->error() )
                               .arg( mProcess->errorString(), stdoutString.replace( "\n"_L1, ", "_L1 ), stderrString.replace( "\n"_L1, ", "_L1 ) );
@@ -534,8 +526,7 @@ QStringList QgsGrassRasterImport::names() const
 QgsGrassVectorImport::QgsGrassVectorImport( QgsVectorDataProvider *provider, const QgsGrassObject &grassObject )
   : QgsGrassImport( grassObject )
   , mProvider( provider )
-{
-}
+{}
 
 QgsGrassVectorImport::~QgsGrassVectorImport()
 {
@@ -717,8 +708,7 @@ bool QgsGrassVectorImport::import()
   QString stderrString = mProcess->readAllStandardError().constData();
 
 #ifdef QGISDEBUG
-  QString processResult = u"exitStatus=%1, exitCode=%2, error=%3, errorString=%4 stdout=%5, stderr=%6"_s
-                            .arg( mProcess->exitStatus() )
+  QString processResult = u"exitStatus=%1, exitCode=%2, error=%3, errorString=%4 stdout=%5, stderr=%6"_s.arg( mProcess->exitStatus() )
                             .arg( mProcess->exitCode() )
                             .arg( mProcess->error() )
                             .arg( mProcess->errorString(), stdoutString.replace( "\n"_L1, ", "_L1 ), stderrString.replace( "\n"_L1, ", "_L1 ) );
@@ -759,8 +749,7 @@ QString QgsGrassVectorImport::srcDescription() const
 QgsGrassCopy::QgsGrassCopy( const QgsGrassObject &srcObject, const QgsGrassObject &destObject )
   : QgsGrassImport( destObject )
   , mSrcObject( srcObject )
-{
-}
+{}
 
 bool QgsGrassCopy::import()
 {
@@ -787,8 +776,7 @@ QString QgsGrassCopy::srcDescription() const
 QgsGrassExternal::QgsGrassExternal( const QString &gdalSource, const QgsGrassObject &destObject )
   : QgsGrassImport( destObject )
   , mSource( gdalSource )
-{
-}
+{}
 
 bool QgsGrassExternal::import()
 {

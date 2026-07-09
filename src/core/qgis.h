@@ -48,7 +48,7 @@ int QgisEvent = QEvent::User + 1;
 // qHash implementation for scoped enum type
 // https://gitlab.com/frostasm/programming-knowledge-base/-/snippets/20120
 #define QHASH_FOR_CLASS_ENUM( T )                                                     \
-  inline uint qHash( const T &t, uint seed )                                          \
+  inline size_t qHash( const T &t, size_t seed )                                      \
   {                                                                                   \
     return ::qHash( static_cast<typename std::underlying_type<T>::type>( t ), seed ); \
   }
@@ -461,10 +461,10 @@ int QgisEvent = QEvent::User + 1;
      */
     enum class EmbeddedScriptType : int
     {
-      Macro = 0,              //! Project macros
-      ExpressionFunction = 1, //! Expression functions
-      Action = 2,             //! Map layers' action \since QGIS 4.0
-      FormInitCode = 3,       //! Attribute forms' initiation code \since QGIS 4.0
+      Macro = 0,              //!< Project macros
+      ExpressionFunction = 1, //!< Expression functions
+      Action = 2,             //!< Map layers' action \since QGIS 4.0
+      FormInitCode = 3,       //!< Attribute forms' initiation code \since QGIS 4.0
     };
     Q_ENUM( EmbeddedScriptType )
 
@@ -474,9 +474,9 @@ int QgisEvent = QEvent::User + 1;
      */
     enum class ProjectTrustStatus : int
     {
-      Undetermined = 0, //! The project trust has not yet been determined by the user
-      Trusted = 1,      //! The project has been determined by the user as trusted
-      Untrusted = 2,    //! The project has been determined by the user as untrusted
+      Undetermined = 0, //!< The project trust has not yet been determined by the user
+      Trusted = 1,      //!< The project has been determined by the user as trusted
+      Untrusted = 2,    //!< The project has been determined by the user as untrusted
     };
     Q_ENUM( ProjectTrustStatus )
 
@@ -548,6 +548,8 @@ int QgisEvent = QEvent::User + 1;
       CreateLabeling = 1 << 25, //!< Provider can set labeling settings using backend-specific formatting information. Since QGIS 3.6. See QgsVectorDataProvider::createLabeling().
       ReloadData = 1 << 26, //!< Provider is able to force reload data
       FeatureSymbology = 1 << 27, //!< Provider is able retrieve embedded symbology associated with individual features \since QGIS 3.20
+      CacheData = 1 << 28, //!< Provider caches source data and should force provider data reloads when dependent layers are committed \since QGIS 4.2
+      ReadFieldDomains = 1 << 29, //!< Provider can read field domains and their properties \since QGIS 4.2
       EditingCapabilities = AddFeatures | DeleteFeatures | ChangeAttributeValues | ChangeGeometries | AddAttributes | DeleteAttributes | RenameAttributes, //!< Bitmask of all editing capabilities
     };
     Q_ENUM( VectorProviderCapability )
@@ -804,6 +806,27 @@ int QgisEvent = QEvent::User + 1;
     Q_FLAG( SymbolRenderHints )
 
     /**
+     * Symbol converter capabilities.
+     *
+     * \since QGIS 4.2
+     */
+    enum class SymbolConverterCapability : int SIP_ENUM_BASETYPE( IntFlag )
+    {
+      ReadSymbol = 1 << 0, //!< Allows reading symbols from variants
+      WriteSymbol = 1 << 1, //!< Allows writing symbols to variants
+    };
+
+    Q_ENUM( SymbolConverterCapability )
+
+    /**
+     * Symbol converter capabilities.
+     *
+     * \since QGIS 4.2
+     */
+    Q_DECLARE_FLAGS( SymbolConverterCapabilities, SymbolConverterCapability )
+    Q_FLAG( SymbolConverterCapabilities )
+
+    /**
      * \brief Modes for handling how symbol and text entity rotation is handled when maps are rotated.
      *
      * \since QGIS 3.32
@@ -811,7 +834,7 @@ int QgisEvent = QEvent::User + 1;
     enum class SymbolRotationMode : int
     {
       RespectMapRotation, //!< Entity is rotated along with the map
-      IgnoreMapRotation, //!< Entity ignores map rotation
+      IgnoreMapRotation,  //!< Entity ignores map rotation
     };
     Q_ENUM( SymbolRotationMode )
 
@@ -992,6 +1015,25 @@ int QgisEvent = QEvent::User + 1;
     Q_FLAG( BrowserItemCapabilities )
 
     /**
+     * Browser item filter flags.
+     *
+     * \since QGIS 4.2
+     */
+    enum class BrowserItemFilterFlag : int SIP_ENUM_BASETYPE( IntFlag )
+    {
+      HideWhenNotFilteringByLayerType = 1 << 0, //!< Item should be hidden from the view when no layer type filter is in place
+    };
+    Q_ENUM( BrowserItemFilterFlag )
+
+    /**
+     * Browser item filter flags.
+     *
+     * \since QGIS 4.2
+     */
+    Q_DECLARE_FLAGS( BrowserItemFilterFlags, BrowserItemFilterFlag )
+    Q_FLAG( BrowserItemFilterFlags )
+
+    /**
      * Capabilities for data item providers.
      *
      * \note Prior to QGIS 3.36 this was available as QgsDataProvider::DataCapability
@@ -1001,10 +1043,10 @@ int QgisEvent = QEvent::User + 1;
     enum class DataItemProviderCapability SIP_MONKEYPATCH_SCOPEENUM_UNNEST( QgsDataProvider, DataCapability ) : int SIP_ENUM_BASETYPE( IntFlag )
     {
       NoCapabilities SIP_MONKEYPATCH_COMPAT_NAME( NoDataCapabilities ) = 0, //!< No capabilities
-      Files SIP_MONKEYPATCH_COMPAT_NAME( File ) = 1, //!< Can provides items which corresponds to files
-      Directories SIP_MONKEYPATCH_COMPAT_NAME( Dir ) = 1 << 1, //!< Can provides items which corresponds to directories
-      Databases SIP_MONKEYPATCH_COMPAT_NAME( Database ) = 1 << 2, //!< Can provides items which corresponds to databases
-      NetworkSources SIP_MONKEYPATCH_COMPAT_NAME( Net ) = 1 << 3, //!< Network/internet source
+      Files SIP_MONKEYPATCH_COMPAT_NAME( File ) = 1,                        //!< Can provides items which corresponds to files
+      Directories SIP_MONKEYPATCH_COMPAT_NAME( Dir ) = 1 << 1,              //!< Can provides items which corresponds to directories
+      Databases SIP_MONKEYPATCH_COMPAT_NAME( Database ) = 1 << 2,           //!< Can provides items which corresponds to databases
+      NetworkSources SIP_MONKEYPATCH_COMPAT_NAME( Net ) = 1 << 3,           //!< Network/internet source
     };
     Q_ENUM( DataItemProviderCapability )
 
@@ -2219,6 +2261,18 @@ int QgisEvent = QEvent::User + 1;
     Q_ENUM( JoinStyle3D )
 
     /**
+     * Geometry backend for QgsGeometry.
+     *
+     * \since QGIS 4.2
+     */
+    enum class GeometryBackend : int
+    {
+      QGIS = 1, //!< Use internal implementation
+      GEOS,     //!< Use GEOS implementation
+    };
+    Q_ENUM( GeometryBackend )
+
+    /**
      * Flags which control geos geometry creation behavior.
      *
      * \since QGIS 3.40
@@ -2530,6 +2584,20 @@ int QgisEvent = QEvent::User + 1;
       PreferredGdal SIP_MONKEYPATCH_COMPAT_NAME( WKT_PREFERRED_GDAL ) = Wkt2_2019, //!< Preferred format for conversion of CRS to WKT for use with the GDAL library.
     };
     Q_ENUM( CrsWktVariant )
+
+    /**
+     * Behavior to use when encountering a layer with an unknown (invalid) CRS.
+     *
+     * \since QGIS 4.2
+     */
+    enum class UnknownLayerCrsBehavior : int
+    {
+      NoAction = 0,         //!< Take no action and leave as unknown CRS
+      PromptUserForCrs = 1, //!< User is prompted for a CRS choice
+      UseProjectCrs = 2,    //!< Copy the current project's CRS
+      UseDefaultCrs = 3,    //!< Use the default layer CRS set via QGIS options
+    };
+    Q_ENUM( UnknownLayerCrsBehavior )
 
     /**
      * Cartesian axes.
@@ -4241,6 +4309,38 @@ int QgisEvent = QEvent::User + 1;
     Q_DECLARE_FLAGS( PlotToolFlags, PlotToolFlag )
     Q_FLAG( PlotToolFlags )
 
+    /**
+     * Flags that control debug options for 3D maps.
+     *
+     * \warning These are debugging options only, and are not considered part of stable API.
+     *
+     * \since QGIS 4.2
+     */
+    enum class Map3DDebugFlag : int SIP_ENUM_BASETYPE( IntFlag )
+    {
+      ShowTerrainBoundingBoxes = 1 << 0, //!< Displays bounding boxes of terrain tiles.
+      ShowTerrainTileInfo = 1 << 1,      //!< Displays extra tile info on top of terrain tiles.
+      ShowCameraViewCenter = 1 << 2,     //!< Shows the camera's view center as a sphere.
+      ShowCameraRotationCenter = 1 << 3, //!< Shows the camera's rotation center as a sphere.
+      ShowLightSourceOrigins = 1 << 4,   //!< Shows the light source origins as a sphere.
+      ShowFPS = 1 << 5,                  //!< Shows the frames per second (FPS).
+      ShowDebugPanel = 1 << 6,           //!< Shows the debug panel next to the map.
+    };
+    Q_ENUM( Map3DDebugFlag )
+    Q_DECLARE_FLAGS( Map3DDebugFlags, Map3DDebugFlag )
+    Q_FLAG( Map3DDebugFlags )
+
+    /**
+     * 3D map projection type
+     *
+     * \since QGIS 4.2
+     */
+    enum class Map3DProjectionType : int
+    {
+      Orthographic = 0, //!< Orthogonal projection
+      Perspective = 1,  //!< Perspective projection
+    };
+    Q_ENUM( Map3DProjectionType )
 
     /**
      * 3D point shape types.
@@ -4264,6 +4364,71 @@ int QgisEvent = QEvent::User + 1;
     Q_ENUM( Point3DShape )
 
     /**
+     * Material rendering techniques.
+     *
+     * \warning This is not considered stable API, and may change in future QGIS releases. It is
+     * exposed to the Python bindings as a tech preview only.
+     *
+     * \since QGIS 4.2
+     */
+    enum class MaterialRenderingTechnique : int
+    {
+      Triangles,                 //!< Triangle based rendering (default)
+      Lines,                     //!< Line based rendering, requires line data
+      InstancedPoints,           //!< Instanced based rendering, requiring triangles and point data
+      Points,                    //!< Point based rendering, requires point data
+      TrianglesWithFixedTexture, //!< Triangle based rendering, using a fixed, non-user-configurable texture (e.g. for terrain rendering)
+      TrianglesFromModel,        //!< Triangle based rendering, using a model object source
+      TrianglesDataDefined,      //!< Triangle based rendering with possibility of datadefined color
+      Billboards,                //!< Flat billboard rendering
+    };
+    Q_ENUM( MaterialRenderingTechnique )
+
+    /**
+     * Optional per-instance properties of instanced materials.
+     *
+     * \since QGIS 4.2
+     */
+    enum class InstancedMaterialFlag : int SIP_ENUM_BASETYPE( IntFlag )
+    {
+      DataDefinedScale = 1 << 0,    //!< Per-instance data-defined scale
+      DataDefinedRotation = 1 << 1, //!< Per-instance data-defined rotation
+    };
+    Q_ENUM( InstancedMaterialFlag )
+    Q_DECLARE_FLAGS( InstancedMaterialFlags, InstancedMaterialFlag )
+    Q_FLAG( InstancedMaterialFlags )
+
+    /**
+     * Texture filtering qualities.
+     *
+     * \since QGIS 4.2
+     */
+    enum class TextureFilterQuality : int
+    {
+      Trilinear,      //!< Trilinear (LinearMipmapLinear)
+      Anisotropic2x,  //!< Anisotropic filtering (2x)
+      Anisotropic4x,  //!< Anisotropic filtering (4x)
+      Anisotropic8x,  //!< Anisotropic filtering (8x)
+      Anisotropic16x, //!< Anisotropic filtering (16x)
+    };
+    Q_ENUM( TextureFilterQuality )
+
+    /**
+     * Shadow texture quality.
+     *
+     * \since QGIS 4.2
+     */
+    enum class ShadowQuality : int
+    {
+      Low,      //!< Low quality
+      Medium,   //!< Medium quality
+      High,     //!< High quality
+      VeryHigh, //!< Very high quality
+      Extreme,  //!< Extremely high quality
+    };
+    Q_ENUM( ShadowQuality )
+
+    /**
      * Light source types for 3D scenes.
      *
      * \since QGIS 3.26
@@ -4272,8 +4437,36 @@ int QgisEvent = QEvent::User + 1;
     {
       Point,       //!< Point light source
       Directional, //!< Directional light source
+      Sun,         //!< Sun based light source \since QGIS 4.2
     };
     Q_ENUM( LightSourceType )
+
+    /**
+     * Background types for 3D map view.
+     * \since QGIS 4.2
+     */
+    enum class Map3DBackgroundType : int
+    {
+      NoBackground,            //!< No background
+      FixedGradientBackground, //!< Two color gradient, fixed in place
+      DistinctTextureSkybox,   //!< Skybox with 6 distinct textures for different faces
+    };
+    Q_ENUM( Map3DBackgroundType )
+
+    /**
+     * Skybox texture cube mapping for distinct texture skyboxes.
+     *
+     * \since QGIS 4.2
+     */
+    enum class SkyboxCubeMapping : int
+    {
+      NativeZUp,             //!< Textures exported for Z-up (+X Right, +Y Forward, +Z Up)
+      OpenGLYUp,             //!< Standard OpenGL/WebGL standard (+X Right, +Y Top, -Z Forward)
+      GodotYUp,              //!< Godot standard (+X Right, +Y Top, -Z Forward, with vertical flip)
+      UnrealEngineZUp,       //!< Unreal engine standard (+X Forward, +Y Right, +Z Up, Left-handed)
+      LeftHandedYUpMirrored, //!< Left-Handed, Y-Up coordinate systems (e.g., Unity convention +X Right, +Y Top, +Z Forward, with horizontal mirror)
+    };
+    Q_ENUM( SkyboxCubeMapping )
 
     /**
      * The navigation mode used by 3D cameras.
@@ -4305,13 +4498,46 @@ int QgisEvent = QEvent::User + 1;
      *
      * \since QGIS 3.30
      */
-    enum class VerticalAxisInversion : int
+    enum class VerticalAxisInversion : int SIP_ENUM_BASETYPE( IntFlag )
     {
-      Never,        //!< Never invert vertical axis movements
-      WhenDragging, //!< Invert vertical axis movements when dragging in first person modes
-      Always,       //!< Always invert vertical axis movements
+      WhenRotatingDragging = 1 << 0, //!< When rotating camera around self with mouse captured \since QGIS 4.2
+      WhenRotatingCaptured = 1 << 1, //!< When rotating camera around self with mouse button pressed \since QGIS 4.2
+      WhenPivoting = 1 << 2,         //!< When pivoting camera around point in terrain \since QGIS 4.2
+
+      // Legacy aliases for old flying-only enum:
+
+      Never = WhenRotatingDragging | WhenRotatingCaptured | WhenPivoting, //!< Never invert vertical axis movements \deprecated QGIS 4.2
+      WhenDragging = WhenRotatingCaptured | WhenPivoting,                 //!< Invert vertical axis movements when dragging in first person modes \deprecated QGIS 4.2
+      Always = WhenPivoting,                                              //!< Always invert vertical axis movements \deprecated QGIS 4.2
     };
     Q_ENUM( VerticalAxisInversion )
+    Q_DECLARE_FLAGS( VerticalAxisInversionFlags, VerticalAxisInversion )
+    Q_FLAG( VerticalAxisInversionFlags )
+
+    /**
+     * Defines the method used to map High Dynamic Range (HDR) scene colors
+     * to the Standard Dynamic Range (SDR) of a display monitor.
+     *
+     * \since QGIS 4.2
+     */
+    enum class ToneMappingMethod : int
+    {
+      Clamp, //!< Clamp HDR colors to SDR color ranges, leave SDR colors unchanged. This is computationally cheap and ensures exact reproduction of SDR colors, but causes bright highlights to visibly clip and lose detail.
+      Aces, //!< Applies an approximation to the Academy Color Encoding System (ACES) filmic tone curve. This provides a natural, cinematic highlight roll-off and preserves detail in extreme brightness.
+    };
+    Q_ENUM( ToneMappingMethod )
+
+    /**
+     * The file format used when exporting a 3D scene.
+     *
+     * \since QGIS 4.2
+     */
+    enum class Export3DSceneFormat : int
+    {
+      Obj,     //!< Wavefront OBJ format.
+      StlAscii //!< STL ascii format.
+    };
+    Q_ENUM( Export3DSceneFormat )
 
     /**
      * Surface symbology type for elevation profile plots.
@@ -4525,6 +4751,34 @@ int QgisEvent = QEvent::User + 1;
     Q_ENUM( ArcGisRestServiceType )
 
     /**
+     * Available ArcGIS REST service capabilities.
+     *
+     * This enum contains a subset of the capabilities returned by ArcGIS REST services. May be
+     * extended in future with additional capabilities when required.
+     *
+     * \since QGIS 4.2
+     */
+    enum class ArcGisRestServiceCapability : int SIP_ENUM_BASETYPE( IntFlag )
+    {
+      Map = 1 << 0,       //!< Render map
+      Query = 1 << 1,     //!< Query features
+      Update = 1 << 2,    //!< Update features
+      Delete = 1 << 3,    //!< Delete features
+      Create = 1 << 4,    //!< Create features
+      Image = 1 << 5,     //!< Image capabilities
+      TilesOnly = 1 << 6, //!< Service supports tiled image requests only
+    };
+    Q_ENUM( ArcGisRestServiceCapability )
+
+    /**
+     * Available ArcGIS REST service capabilities.
+     *
+     * \since QGIS 4.2
+     */
+    Q_DECLARE_FLAGS( ArcGisRestServiceCapabilities, ArcGisRestServiceCapability )
+    Q_FLAG( ArcGisRestServiceCapabilities )
+
+    /**
      * Relationship types.
      *
      * \note Prior to QGIS 3.28 this was available as QgsRelation::RelationType.
@@ -4669,6 +4923,19 @@ int QgisEvent = QEvent::User + 1;
       OptimalInInsertionGroup, //!< Layers are added at optimal locations across the insertion point's group
     };
     Q_ENUM( LayerTreeInsertionMethod )
+
+    /**
+     * Action performed when double-clicking a layer in the legend.
+     *
+     * \since QGIS 4.0
+     */
+    enum class LegendLayerDoubleClickAction : int
+    {
+      LayerProperties = 0, //!< Open the layer properties dialog
+      AttributeTable = 1,  //!< Open the attribute table
+      LayerStyling = 2,    //!< Open the layer styling dock
+    };
+    Q_ENUM( LegendLayerDoubleClickAction )
 
     /**
      * Layer tree filter flags.
@@ -6316,6 +6583,40 @@ int QgisEvent = QEvent::User + 1;
     Q_FLAG( RasterBandStatistics )
 
     /**
+     * OGC SensorThings API versions.
+     *
+     * \since QGIS 4.2
+     */
+    enum class SensorThingsVersion : int
+    {
+        Version1_1, //!< 1.1
+        Version2_0, //!< 2.0
+    };
+    Q_ENUM( SensorThingsVersion );
+
+    /**
+     * OGC SensorThings extensions.
+     *
+     * \since QGIS 4.2
+     */
+    enum class SensorThingsExtension : int SIP_ENUM_BASETYPE( IntFlag )
+    {
+      MultiDatastream = 1 << 0,                          //!< MultiDatastream extension
+      SensingExtensionObservationsMeasurements = 1 << 1, //!< Sensing Extension (Observations & Measurements)
+      SensingExtensionSampling = 1 << 2,                 //!< Sensing Extension (Sampling)
+      SensingExtensionRelations = 1 << 3,                //!< Sensing Extension (Relations)
+    };
+    Q_ENUM( SensorThingsExtension );
+
+    /**
+     * OGC SensorThings extensions.
+     *
+     * \since QGIS 4.2
+     */
+    Q_DECLARE_FLAGS( SensorThingsExtensions, SensorThingsExtension )
+    Q_FLAG( SensorThingsExtensions )
+
+    /**
      * OGC SensorThings API entity types.
      *
      * \since QGIS 3.36
@@ -6324,14 +6625,29 @@ int QgisEvent = QEvent::User + 1;
     {
       Invalid, //!< An invalid/unknown entity
       Thing, //!< A Thing is an object of the physical world (physical things) or the information world (virtual things) that is capable of being identified and integrated into communication networks
-      Location, //!< A Location entity locates the Thing or the Things it associated with. A Thing’s Location entity is defined as the last known location of the Thing
+      Location,           //!< A Location entity locates the Thing or the Things it associated with. A Thing’s Location entity is defined as the last known location of the Thing
       HistoricalLocation, //!< A Thing’s HistoricalLocation entity set provides the times of the current (i.e., last known) and previous locations of the Thing
-      Datastream, //!< A Datastream groups a collection of Observations measuring the same ObservedProperty and produced by the same Sensor
-      Sensor, //!< A Sensor is an instrument that observes a property or phenomenon with the goal of producing an estimate of the value of the property
-      ObservedProperty, //!< An ObservedProperty specifies the phenomenon of an Observation
-      Observation, //!< An Observation is the act of measuring or otherwise determining the value of a property
+      Datastream,         //!< A Datastream groups a collection of Observations measuring the same ObservedProperty and produced by the same Sensor
+      Sensor,             //!< A Sensor is an instrument that observes a property or phenomenon with the goal of producing an estimate of the value of the property
+      ObservedProperty,   //!< An ObservedProperty specifies the phenomenon of an Observation
+      Observation,        //!< An Observation is the act of measuring or otherwise determining the value of a property
       FeatureOfInterest, //!< In the context of the Internet of Things, many Observations’ FeatureOfInterest can be the Location of the Thing. For example, the FeatureOfInterest of a wifi-connect thermostat can be the Location of the thermostat (i.e., the living room where the thermostat is located in). In the case of remote sensing, the FeatureOfInterest can be the geographical area or volume that is being sensed
       MultiDatastream, //!< A MultiDatastream groups a collection of Observations and the Observations in a MultiDatastream have a complex result type. Implemented in the SensorThings version 1.1 "MultiDatastream extension". \since QGIS 3.38
+      // version 2.0
+      Feature, //!< A Feature is an abstraction of real-world phenomena. It acts as an independent entity that can represent the proximate feature (e.g., a physical sample) or the ultimate real-world object being observed, replacing the v1.1 FeatureOfInterest. \since QGIS 4.2
+      FeatureType, //!< A FeatureType provides the classification and schema definition for a Feature, describing the common properties and structure expected for a specific category of Features. \since QGIS 4.2
+      Deployment, //!< A Deployment is the association of a Sensor to a Thing that hosts this Sensor, and to the Datastreams that contain the Observations produced by the Sensor while it is/was hosted on this Thing. Implemented in the "Sensing Extension (Observations & Measurements)". \since QGIS 4.2
+      ObservingProcedure, //!< An Observing Procedure. Implemented in the "Sensing Extension (Observations & Measurements)". \since QGIS 4.2
+      Sampling, //!< The Sampling is the act of taking one or more Samples. The Sampling takes Samples from a SampledFeature. The Sampling is executed by a Sampler, following a SamplingProcedure. The Sampling can be associated with a Thing. Implemented in the "Sampling Extension". \since QGIS 4.2
+      SamplingProcedure, //!< The SamplingProcedure describes the method, or procedure, that the Sampler uses to create Samples. A Sampler must implement at least one SamplingProcedure, but can implement many. A Sample is created using one SamplingProcedure, though this SamplingProcedure may not be known. Implemented in the "Sampling Extension". \since QGIS 4.2
+      Sampler, //!< The Sampler describes the machine, device, human or other entity that executed the sampling procedure to produce a sample. Implemented in the "Sampling Extension". \since QGIS 4.2
+      PreparationStep, //!< When applying a PreparationProcdedure to a Sample, the process is recorded in individual PreparationSteps. For a simple, short PreparationProcedure, a single PreparationStep can be sufficient to record the fact that the preparation procedure was applied to the Sample, and the time at which the procedure was applied. For a complex procedure, that takes a long time, many PreparationSteps may be recorded. Implemented in the "Sampling Extension". \since QGIS 4.2
+      PreparationProcedure, //!< After a sample is taken, a preparation procedure can be applied to it. The difference with the sampling procedure is that the preparation procedure does not result in one or more new samples, but that an existing sample is modified. The PreparationProcedure stores the generic procedure that can be applied to many samples. Implemented in the "Sampling Extension". \since QGIS 4.2
+      ThingRelation, //!< A ThingRelation Entity relates a source Thing to a target Thing, or to an external resource, using a RelationRole. Implemented in the "Relations Extension". \since QGIS 4.2
+      RelationRole,  //!< The RelationRole Entity holds a name and definition for both directions of the relation. Implemented in the "Relations Extension". \since QGIS 4.2
+      FeatureRelation, //!< A FeatureRelation Entity relates a source Feature to a target Feature, or to an external resource, using a RelationRole. Implemented in the "Relations Extension". \since QGIS 4.2
+      DatastreamRelation, //!< A DatastreamRelation Entity relates a source Datastream to a target Datastream, or to an external resource, using a RelationRole. Implemented in the "Relations Extension". \since QGIS 4.2
+      ObservationRelation, //!< A ObservationRelation Entity relates a source Observation to a target Observation, or to an external resource, using a RelationRole. Implemented in the "Relations Extension". \since QGIS 4.2
     };
     Q_ENUM( SensorThingsEntity )
 
@@ -6538,6 +6854,37 @@ int QgisEvent = QEvent::User + 1;
     Q_ENUM( TriangulationAlgorithm )
 
     /**
+     * Request mode of groups in a WMS context.
+     *
+     * When a group is opaque, WMS treats it as a single opaque layer instead
+     * of a collection of individual layers.
+     * Its child layers are hidden from GetCapabilities requests.
+     * Any direct requests (like GetMap or GetFeatureInfo etc.) for a child layer will result in an error.
+     * Child layers are rendered whenever a request is made for the group itself.
+     *
+     * \since QGIS 4.2
+    */
+    enum class WmsGroupRequestMode : int
+    {
+      Normal, //!< Group and children can be requested
+      Opaque, //!< Group can be requested, children cannot (appears like a single layer)
+    };
+    Q_ENUM( WmsGroupRequestMode )
+
+    /**
+     * Dockable widget initial states.
+     *
+     * \since QGIS 4.2
+     */
+    enum class DockableWidgetInitialState : int
+    {
+      RestorePreviousState, //!< Restore the previous state of this dock
+      ForceDocked,          //!< Force the widget to be docked
+      ForceDialog,          //!< Force the widget to be shown in a dialog
+    };
+    Q_ENUM( DockableWidgetInitialState )
+
+    /**
      * Identify search radius in mm
      */
     static const double DEFAULT_SEARCH_RADIUS_MM;
@@ -6741,6 +7088,7 @@ Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::AuthConfigurationStorageCapabilities )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::BabelCommandFlags )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::BabelFormatCapabilities )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::BrowserItemCapabilities )
+Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::BrowserItemFilterFlags )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::CoordinateTransformationFlags )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::DatabaseProviderConnectionCapabilities2 )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::DatabaseProviderTableImportCapabilities )
@@ -6762,6 +7110,7 @@ Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::LoadStyleFlags )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::MapSettingsFlags )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::MarkerLinePlacements )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::PlotToolFlags )
+Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::VerticalAxisInversionFlags )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::ProfileGeneratorFlags )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::ProjectCapabilities )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::ProjectReadFlags )
@@ -6824,6 +7173,11 @@ Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::MapLayerLegendFlags )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::CurvedTextFlags )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::ExtrusionFaces )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::MapGridFrameSideFlags )
+Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::SymbolConverterCapabilities )
+Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::ArcGisRestServiceCapabilities )
+Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::InstancedMaterialFlags )
+Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::Map3DDebugFlags )
+Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::SensorThingsExtensions )
 Q_DECLARE_METATYPE( Qgis::LayoutRenderFlags )
 Q_DECLARE_METATYPE( QTimeZone )
 
@@ -6883,7 +7237,7 @@ template<class Object> inline QgsSignalBlocker<Object> whileBlocking( Object *ob
 }
 
 //! Hash for QVariant
-CORE_EXPORT uint qHash( const QVariant &variant );
+CORE_EXPORT size_t qHash( const QVariant &variant );
 
 /**
  * Returns a string representation of a double
@@ -6937,12 +7291,13 @@ inline QString qgsDoubleToString( double a, int precision = 17 )
  */
 inline bool qgsNanCompatibleEquals( double a, double b )
 {
-  const bool aIsNan = std::isnan( a );
-  const bool bIsNan = std::isnan( b );
-  if ( aIsNan || bIsNan )
-    return aIsNan && bIsNan;
+  if ( a == b )
+    return true;
 
-  return a == b;
+  if ( std::isnan( a ) && std::isnan( b ) ) [[unlikely]]
+    return true;
+
+  return false;
 }
 
 #ifndef SIP_RUN
@@ -6956,13 +7311,23 @@ inline bool qgsNanCompatibleEquals( double a, double b )
  */
 template<typename T> inline bool qgsNumberNear( T a, T b, T epsilon = std::numeric_limits<T>::epsilon() * 4 )
 {
-  const bool aIsNan = std::isnan( a );
-  const bool bIsNan = std::isnan( b );
-  if ( aIsNan || bIsNan )
-    return aIsNan && bIsNan;
+  static_assert( std::is_floating_point<T>::value, "qgsNumberNear requires floating-point types" );
 
+  if ( a == b )
+    return true;
+
+  // if either 'a' or 'b' is NaN, 'diff' becomes NaN.
+  // comparisons (>= or <=) against NaN evaluate to false, which will fallback
+  // to the nan related logic at the end of this function
   const T diff = a - b;
-  return diff >= -epsilon && diff <= epsilon;
+  if ( diff >= -epsilon && diff <= epsilon )
+    return true;
+
+  // defer expensive nan checks to last -- calling std::isnan is NOT cheap!
+  if ( std::isnan( a ) && std::isnan( b ) ) [[unlikely]]
+    return true;
+
+  return false;
 }
 #endif
 
@@ -6975,6 +7340,60 @@ template<typename T> inline bool qgsNumberNear( T a, T b, T epsilon = std::numer
 inline bool qgsDoubleNear( double a, double b, double epsilon = 4 * std::numeric_limits<double>::epsilon() )
 {
   return qgsNumberNear<double>( a, b, epsilon );
+}
+
+/**
+ * Compare two doubles to see if one is less than the other or very near to the other.
+ * \param a first double
+ * \param b second double
+ * \param epsilon maximum tolerance when comparing near values
+ *
+ * \since QGIS 4.2
+ */
+inline bool qgsDoubleLessThanOrNear( double a, double b, double epsilon = 4 * std::numeric_limits<double>::epsilon() )
+{
+  // fast check first
+  if ( a <= b )
+    return true;
+
+  // => a > b
+  // => a - b > 0
+  // we only need to check the upper epsilon bound for the fuzzy equality
+  if ( a - b <= epsilon )
+    return true;
+
+  // defer expensive nan checks to last -- calling std::isnan is NOT cheap!
+  if ( std::isnan( a ) && std::isnan( b ) ) [[unlikely]]
+    return true;
+
+  return false;
+}
+
+/**
+ * Compare two doubles to see if one is greater than the other or very near to the other.
+ * \param a first double
+ * \param b second double
+ * \param epsilon maximum tolerance when comparing near values
+ *
+ * \since QGIS 4.2
+ */
+inline bool qgsDoubleGreaterThanOrNear( double a, double b, double epsilon = 4 * std::numeric_limits<double>::epsilon() )
+{
+  // fast check first
+  if ( a >= b )
+    return true;
+
+  // => a < b
+  // => b - a > 0
+  // we only need to check the upper epsilon bound for the fuzzy equality
+  if ( b - a <= epsilon )
+    return true;
+
+  // defer expensive nan checks to last -- calling std::isnan is NOT cheap!
+  if ( std::isnan( a ) && std::isnan( b ) ) [[unlikely]]
+    return true;
+
+  return false;
 }
 
 /**
@@ -7217,6 +7636,13 @@ template<class T> QString qgsFlagValueToKeys( const T &value, bool *returnOk = n
   const QMetaEnum metaEnum = QMetaEnum::fromType<T>();
   Q_ASSERT( metaEnum.isValid() );
   int intValue = static_cast<int>( value );
+  if ( intValue == 0 )
+  {
+    if ( returnOk )
+      *returnOk = true;
+    return u"0"_s;
+  }
+
   const QByteArray ba = metaEnum.valueToKeys( intValue );
   // check that the int value does correspond to a flag
   // see https://stackoverflow.com/a/68495949/1548052
@@ -7243,6 +7669,14 @@ template<class T> T qgsFlagKeysToValue( const QString &keys, const T &defaultVal
       *returnOk = false;
     }
     return defaultValue;
+  }
+  else if ( keys == "0"_L1 )
+  {
+    if ( returnOk )
+    {
+      *returnOk = true;
+    }
+    return T();
   }
   const QMetaEnum metaEnum = QMetaEnum::fromType<T>();
   Q_ASSERT( metaEnum.isValid() );

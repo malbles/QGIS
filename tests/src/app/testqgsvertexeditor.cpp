@@ -61,7 +61,8 @@ class TestQgsVertexEditor : public QgsTest
 };
 
 TestQgsVertexEditor::TestQgsVertexEditor()
-  : QgsTest( u"Vertex Editor tests"_s ) {}
+  : QgsTest( u"Vertex Editor tests"_s )
+{}
 
 //runs before all tests
 void TestQgsVertexEditor::initTestCase()
@@ -75,11 +76,6 @@ void TestQgsVertexEditor::initTestCase()
   mCanvas->setDestinationCrs( QgsCoordinateReferenceSystem( u"EPSG:27700"_s ) );
 
   mVertexEditor = std::make_unique<QgsVertexEditorWidget>( mCanvas.get() );
-
-  // Set up the QSettings environment
-  QCoreApplication::setOrganizationName( u"QGIS"_s );
-  QCoreApplication::setOrganizationDomain( u"qgis.org"_s );
-  QCoreApplication::setApplicationName( u"QGIS-TEST"_s );
 
   mLayerLine = std::make_unique<QgsVectorLayer>( u"LineString?crs=EPSG:27700"_s, u"layer line Z"_s, u"memory"_s );
   QVERIFY( mLayerLine->isValid() );

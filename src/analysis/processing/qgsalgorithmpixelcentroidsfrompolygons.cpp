@@ -53,8 +53,10 @@ QString QgsPixelCentroidsFromPolygonsAlgorithm::groupId() const
 
 QString QgsPixelCentroidsFromPolygonsAlgorithm::shortHelpString() const
 {
-  return QObject::tr( "This algorithm generates pixel centroids for the raster area falling inside polygons. Used to generate points "
-                      "for further raster sampling." );
+  return QObject::tr(
+    "This algorithm generates pixel centroids for the raster area falling inside polygons. Used to generate points "
+    "for further raster sampling."
+  );
 }
 
 QString QgsPixelCentroidsFromPolygonsAlgorithm::shortDescription() const
@@ -159,6 +161,8 @@ QVariantMap QgsPixelCentroidsFromPolygonsAlgorithm::processAlgorithm( const QVar
           feature.setAttributes( QgsAttributes() << fid << i << pointId );
           if ( !sink->addFeature( feature, QgsFeatureSink::FastInsert ) )
             throw QgsProcessingException( writeFeatureError( sink.get(), parameters, u"OUTPUT"_s ) );
+          else
+            feedback->featureAddedToSink( u"OUTPUT"_s );
 
           fid++;
           pointId++;
@@ -173,6 +177,7 @@ QVariantMap QgsPixelCentroidsFromPolygonsAlgorithm::processAlgorithm( const QVar
   }
 
   sink->finalize();
+  feedback->featureSinkFinalized( u"OUTPUT"_s );
 
   QVariantMap outputs;
   outputs.insert( u"OUTPUT"_s, dest );

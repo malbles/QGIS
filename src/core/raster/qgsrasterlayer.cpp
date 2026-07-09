@@ -96,6 +96,14 @@ using namespace Qt::StringLiterals;
 
 const QgsSettingsEntryDouble *QgsRasterLayer::settingsRasterDefaultOversampling = new QgsSettingsEntryDouble( u"default-oversampling"_s, QgsSettingsTree::sTreeRaster, 2.0 );
 const QgsSettingsEntryBool *QgsRasterLayer::settingsRasterDefaultEarlyResampling = new QgsSettingsEntryBool( u"default-early-resampling"_s, QgsSettingsTree::sTreeRaster, false );
+const QgsSettingsEntryString *QgsRasterLayer::settingsRasterDefaultZoomedInResampling
+  = new QgsSettingsEntryString( u"default-zoomed-in-resampling"_s, QgsSettingsTree::sTreeRaster, u"nearest neighbour"_s, u"Default zoomed-in resampling method for raster layers"_s );
+const QgsSettingsEntryString *QgsRasterLayer::settingsRasterDefaultZoomedOutResampling
+  = new QgsSettingsEntryString( u"default-zoomed-out-resampling"_s, QgsSettingsTree::sTreeRaster, u"nearest neighbour"_s, u"Default zoomed-out resampling method for raster layers"_s );
+const QgsSettingsEntryString *QgsRasterLayer::settingsRasterDefaultContrastEnhancementAlgorithm
+  = new QgsSettingsEntryString( u"default-contrast-enhancement-algorithm/%1"_s, QgsSettingsTree::sTreeRaster, QString(), u"Default contrast enhancement algorithm per renderer type (singleBand, multiBandSingleByte, multiBandMultiByte)"_s );
+const QgsSettingsEntryString *QgsRasterLayer::settingsRasterDefaultContrastEnhancementLimits
+  = new QgsSettingsEntryString( u"default-contrast-enhancement-limits/%1"_s, QgsSettingsTree::sTreeRaster, QString(), u"Default contrast enhancement limits per renderer type (singleBand, multiBandSingleByte, multiBandMultiByte)"_s );
 
 #define ERR( message ) QGS_ERROR_MESSAGE( message, "Raster layer" )
 
@@ -992,8 +1000,7 @@ void QgsRasterLayer::setDataProvider( QString const &provider, const QgsDataProv
   QgsRasterResampleFilter *resampleFilter = new QgsRasterResampleFilter();
   if ( mPipe->set( resampleFilter ) && mDataProvider->providerCapabilities() & Qgis::RasterProviderCapability::ProviderHintBenefitsFromResampling )
   {
-    const QgsSettings settings;
-    QString resampling = settings.value( u"/Raster/defaultZoomedInResampling"_s, u"nearest neighbour"_s ).toString();
+    QString resampling = QgsRasterLayer::settingsRasterDefaultZoomedInResampling->value();
     if ( resampling == "bilinear"_L1 )
     {
       resampleFilter->setZoomedInResampler( new QgsBilinearRasterResampler() );
@@ -1004,7 +1011,7 @@ void QgsRasterLayer::setDataProvider( QString const &provider, const QgsDataProv
       resampleFilter->setZoomedInResampler( new QgsCubicRasterResampler() );
       mDataProvider->setZoomedInResamplingMethod( Qgis::RasterResamplingMethod::Cubic );
     }
-    resampling = settings.value( u"/Raster/defaultZoomedOutResampling"_s, u"nearest neighbour"_s ).toString();
+    resampling = QgsRasterLayer::settingsRasterDefaultZoomedOutResampling->value();
     if ( resampling == "bilinear"_L1 )
     {
       resampleFilter->setZoomedOutResampler( new QgsBilinearRasterResampler() );
@@ -1533,8 +1540,6 @@ bool QgsRasterLayer::defaultContrastEnhancementSettings( QgsContrastEnhancement:
 {
   QGIS_PROTECT_QOBJECT_THREAD_ACCESS
 
-  const QgsSettings mySettings;
-
   QString key;
   QString defaultAlg;
   QString defaultLimits;
@@ -1571,12 +1576,12 @@ bool QgsRasterLayer::defaultContrastEnhancementSettings( QgsContrastEnhancement:
   }
   QgsDebugMsgLevel( "key = " + key, 4 );
 
-  const QString myAlgorithmString = mySettings.value( "/Raster/defaultContrastEnhancementAlgorithm/" + key, defaultAlg ).toString();
+  const QString myAlgorithmString = settingsRasterDefaultContrastEnhancementAlgorithm->valueWithDefaultOverride( defaultAlg, { key } );
   QgsDebugMsgLevel( "myAlgorithmString = " + myAlgorithmString, 4 );
 
   myAlgorithm = QgsContrastEnhancement::contrastEnhancementAlgorithmFromString( myAlgorithmString );
 
-  const QString myLimitsString = mySettings.value( "/Raster/defaultContrastEnhancementLimits/" + key, defaultLimits ).toString();
+  const QString myLimitsString = settingsRasterDefaultContrastEnhancementLimits->valueWithDefaultOverride( defaultLimits, { key } );
   QgsDebugMsgLevel( "myLimitsString = " + myLimitsString, 4 );
   myLimits = QgsRasterMinMaxOrigin::limitsFromString( myLimitsString );
 

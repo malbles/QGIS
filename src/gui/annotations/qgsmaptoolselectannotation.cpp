@@ -107,7 +107,7 @@ QgsMapToolSelectAnnotation::~QgsMapToolSelectAnnotation()
 
 void QgsMapToolSelectAnnotation::activate()
 {
-  mMouseHandles.reset( new QgsMapToolSelectAnnotationMouseHandles( this, mCanvas ) );
+  mMouseHandles = make_qobject_unique<QgsMapToolSelectAnnotationMouseHandles>( this, mCanvas );
 
   QgsMapToolAdvancedDigitizing::activate();
 }
@@ -176,7 +176,7 @@ void QgsMapToolSelectAnnotation::cadCanvasMoveEvent( QgsMapMouseEvent *event )
       if ( !mDragging )
       {
         mDragging = true;
-        mSelectionRubberBand.reset( new QgsRubberBand( mCanvas, Qgis::GeometryType::Polygon ) );
+        mSelectionRubberBand = make_qobject_unique<QgsRubberBand>( mCanvas, Qgis::GeometryType::Polygon );
         QColor color( Qt::blue );
         color.setAlpha( 63 );
         mSelectionRubberBand->setColor( color );
@@ -296,10 +296,7 @@ void QgsMapToolSelectAnnotation::keyPressEvent( QKeyEvent *event )
     updateSelectedItem();
     event->ignore();
   }
-  else if ( event->key() == Qt::Key_Left
-            || event->key() == Qt::Key_Right
-            || event->key() == Qt::Key_Up
-            || event->key() == Qt::Key_Down )
+  else if ( event->key() == Qt::Key_Left || event->key() == Qt::Key_Right || event->key() == Qt::Key_Up || event->key() == Qt::Key_Down )
   {
     const int pixels = ( event->modifiers() & Qt::ShiftModifier ) ? 1 : 50;
     int deltaX = 0;
@@ -666,7 +663,8 @@ void QgsMapToolSelectAnnotation::attemptSetSceneRect( QgsAnnotationItemRubberBan
 
     QgsAnnotationLayer *annotationLayer = annotationItemRubberBand->layer();
     const QgsRectangle boundingBox = mCanvas->mapSettings().mapToLayerCoordinates( annotationLayer, annotationItemRubberBand->boundingBox() );
-    const QgsRectangle modifiedBoundingBox( boundingBox.xMinimum(), boundingBox.yMaximum() - boundingBox.height() * heightRatio, boundingBox.xMinimum() + boundingBox.width() * widthRatio, boundingBox.yMaximum() );
+    const QgsRectangle
+      modifiedBoundingBox( boundingBox.xMinimum(), boundingBox.yMaximum() - boundingBox.height() * heightRatio, boundingBox.xMinimum() + boundingBox.width() * widthRatio, boundingBox.yMaximum() );
 
     QgsAnnotationItemEditContext context;
     context.setCurrentItemBounds( boundingBox );

@@ -35,8 +35,7 @@ using namespace Qt::StringLiterals;
 QgsRequestHandler::QgsRequestHandler( QgsServerRequest &request, QgsServerResponse &response )
   : mRequest( request )
   , mResponse( response )
-{
-}
+{}
 
 QMap<QString, QString> QgsRequestHandler::parameterMap() const
 {
@@ -65,12 +64,26 @@ void QgsRequestHandler::removeResponseHeader( const QString &name )
 
 QString QgsRequestHandler::responseHeader( const QString &name ) const
 {
+  Q_NOWARN_DEPRECATED_PUSH
   return mResponse.header( name );
+  Q_NOWARN_DEPRECATED_POP
 }
 
 QMap<QString, QString> QgsRequestHandler::responseHeaders() const
 {
+  Q_NOWARN_DEPRECATED_PUSH
   return mResponse.headers();
+  Q_NOWARN_DEPRECATED_POP
+}
+
+QList<QString> QgsRequestHandler::fullResponseHeader( const QString &name ) const
+{
+  return mResponse.fullHeader( name );
+}
+
+QMap<QString, QList<QString> > QgsRequestHandler::fullResponseHeaders() const
+{
+  return mResponse.fullHeaders();
 }
 
 void QgsRequestHandler::setRequestHeader( const QString &name, const QString &value )
@@ -174,8 +187,7 @@ void QgsRequestHandler::setupParameters()
       {
         formatString = u"PNG"_s;
       }
-      else if ( formatString.contains( "image/jpeg"_L1, Qt::CaseInsensitive ) || formatString.contains( "image/jpg"_L1, Qt::CaseInsensitive )
-                || formatString.compare( "jpg"_L1, Qt::CaseInsensitive ) == 0 )
+      else if ( formatString.contains( "image/jpeg"_L1, Qt::CaseInsensitive ) || formatString.contains( "image/jpg"_L1, Qt::CaseInsensitive ) || formatString.compare( "jpg"_L1, Qt::CaseInsensitive ) == 0 )
       {
         formatString = u"JPG"_s;
       }
@@ -211,7 +223,8 @@ void QgsRequestHandler::parseInput()
       if ( !doc.setContent( inputString, true, &errorMsg, &line, &column ) )
       {
         // Output Warning about POST without XML content
-        QgsMessageLog::logMessage( u"Error parsing post data as XML: at line %1, column %2: %3. Assuming urlencoded query string sent in the post body."_s.arg( line ).arg( column ).arg( errorMsg ), u"Server"_s, Qgis::MessageLevel::Warning );
+        QgsMessageLog::
+          logMessage( u"Error parsing post data as XML: at line %1, column %2: %3. Assuming urlencoded query string sent in the post body."_s.arg( line ).arg( column ).arg( errorMsg ), u"Server"_s, Qgis::MessageLevel::Warning );
 
         // Process input string as a simple query text
 

@@ -79,9 +79,22 @@ class SERVER_EXPORT QgsServerOgcApi : public QgsServerApi
       OPENAPI3, //!< "application/openapi+json;version=3.0"
       JSON,
       HTML,
-      XML
+      XML,
+      FLATGEOBUF //!< "application/flatgeobuf"
     };
     Q_ENUM( ContentType )
+
+    //! JSON profile
+    enum class Profile
+    {
+      NONE,    //!< No profile
+      RFC7946, //!< GeoJSON profile according to RFC7946
+      // This not supported yet but I am leaving it here because
+      // I am very optimistic that it will be supported soon!
+      //  JSONFG,     //!< JSON Feature Geometry profile according to OGC API - Features 1.0
+      //  JSONFG_PLUS //!< JSON Feature Geometry profile with GeoJSON compatibility extensions
+    };
+    Q_ENUM( Profile )
 
     /**
      * QgsServerOgcApi constructor
@@ -118,6 +131,18 @@ class SERVER_EXPORT QgsServerOgcApi : public QgsServerApi
      */
     static const QHash<QgsServerOgcApi::ContentType, QList<QgsServerOgcApi::ContentType>> contentTypeAliases() SIP_SKIP;
 
+    /**
+     * Returns a string representation of the \a profile.
+     * \note not available in Python bindings
+     */
+    static QString profileToString( const QgsServerOgcApi::Profile &profile ) SIP_SKIP;
+
+    /**
+     * Returns a URI string representation of the \a profile.
+     * \note not available in Python bindings
+     */
+    static QString profileToUri( const QgsServerOgcApi::Profile &profile ) SIP_SKIP;
+
     // Utilities
 #ifndef SIP_RUN
 
@@ -125,11 +150,7 @@ class SERVER_EXPORT QgsServerOgcApi : public QgsServerApi
      * Registers an OGC API handler passing \a Args to the constructor
      * \note not available in Python bindings
      */
-    template<class T, typename... Args>
-    void registerHandler( Args... args )
-    {
-      mHandlers.emplace_back( std::make_shared<T>( args... ) );
-    }
+    template<class T, typename... Args> void registerHandler( Args... args ) { mHandlers.emplace_back( std::make_shared<T>( args... ) ); }
 #endif
 
     /**

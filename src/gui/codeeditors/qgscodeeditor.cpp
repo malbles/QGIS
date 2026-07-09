@@ -49,6 +49,8 @@ using namespace Qt::StringLiterals;
 
 ///@cond PRIVATE
 const QgsSettingsEntryBool *QgsCodeEditor::settingContextHelpHover = new QgsSettingsEntryBool( u"context-help-hover"_s, sTreeCodeEditor, false, u"Whether the context help should works on hovered words"_s );
+const QgsSettingsEntryString *QgsCodeEditor::settingFontFamily = new QgsSettingsEntryString( u"font-family"_s, sTreeCodeEditor, QString(), u"Code editor font family override"_s );
+const QgsSettingsEntryInteger *QgsCodeEditor::settingFontSize = new QgsSettingsEntryInteger( u"font-size"_s, sTreeCodeEditor, 0, u"Code editor font size override (0 for default)"_s );
 ///@endcond PRIVATE
 
 
@@ -115,6 +117,9 @@ QgsCodeEditor::QgsCodeEditor( QWidget *parent, const QString &title, bool foldin
   setSciWidget();
   setHorizontalScrollBarPolicy( Qt::ScrollBarAsNeeded );
 
+  SendScintilla( SCI_STYLESETBACK, STYLE_DEFAULT, lexerColor( QgsCodeEditorColorScheme::ColorRole::Background ) );
+  SendScintilla( SCI_STYLESETFORE, STYLE_DEFAULT, lexerColor( QgsCodeEditorColorScheme::ColorRole::Default ) );
+
   SendScintilla( SCI_SETADDITIONALSELECTIONTYPING, 1 );
   SendScintilla( SCI_SETMULTIPASTE, 1 );
   SendScintilla( SCI_SETVIRTUALSPACEOPTIONS, SCVS_RECTANGULARSELECTION );
@@ -122,6 +127,7 @@ QgsCodeEditor::QgsCodeEditor( QWidget *parent, const QString &title, bool foldin
   SendScintilla( SCI_SETMARGINTYPEN, static_cast<int>( QgsCodeEditor::MarginRole::ErrorIndicators ), SC_MARGIN_SYMBOL );
   SendScintilla( SCI_SETMARGINMASKN, static_cast<int>( QgsCodeEditor::MarginRole::ErrorIndicators ), 1 << MARKER_NUMBER );
   setMarginWidth( static_cast<int>( QgsCodeEditor::MarginRole::ErrorIndicators ), 0 );
+
   setAnnotationDisplay( QsciScintilla::AnnotationBoxed );
 
   connect( QgsGui::instance(), &QgsGui::optionsChanged, this, [this] {
@@ -163,6 +169,8 @@ QgsCodeEditor::QgsCodeEditor( QWidget *parent, const QString &title, bool foldin
   mLastEditTimer->setInterval( 1000 );
   connect( mLastEditTimer, &QTimer::timeout, this, &QgsCodeEditor::onLastEditTimeout );
   connect( this, &QgsCodeEditor::textChanged, mLastEditTimer, qOverload<>( &QTimer::start ) );
+
+  SendScintilla( SCI_STYLECLEARALL );
 }
 
 // Workaround a bug in QScintilla 2.8.X
@@ -406,8 +414,7 @@ bool QgsCodeEditor::eventFilter( QObject *watched, QEvent *event )
 }
 
 void QgsCodeEditor::initializeLexer()
-{
-}
+{}
 
 QColor QgsCodeEditor::lexerColor( QgsCodeEditorColorScheme::ColorRole role ) const
 {
@@ -718,8 +725,7 @@ void QgsCodeEditor::updateHistory( const QStringList &commands, bool skipSoftHis
 }
 
 void QgsCodeEditor::populateContextMenu( QMenu * )
-{
-}
+{}
 
 QString QgsCodeEditor::reformatCodeString( const QString &string )
 {
@@ -854,8 +860,7 @@ bool QgsCodeEditor::checkSyntax()
 }
 
 void QgsCodeEditor::toggleComment()
-{
-}
+{}
 
 void QgsCodeEditor::toggleLineComments( const QString &commentPrefix )
 {
@@ -1229,11 +1234,11 @@ QFont QgsCodeEditor::getMonospaceFont()
 {
   QFont font = QFontDatabase::systemFont( QFontDatabase::FixedFont );
 
-  const QgsSettings settings;
-  if ( !settings.value( u"codeEditor/fontfamily"_s, QString(), QgsSettings::Gui ).toString().isEmpty() )
-    QgsFontUtils::setFontFamily( font, settings.value( u"codeEditor/fontfamily"_s, QString(), QgsSettings::Gui ).toString() );
+  const QString fontFamily = settingFontFamily->value();
+  if ( !fontFamily.isEmpty() )
+    QgsFontUtils::setFontFamily( font, fontFamily );
 
-  const int fontSize = settings.value( u"codeEditor/fontsize"_s, 0, QgsSettings::Gui ).toInt();
+  const int fontSize = settingFontSize->value();
 
 #ifdef Q_OS_MAC
   if ( fontSize > 0 )
@@ -1248,6 +1253,7 @@ QFont QgsCodeEditor::getMonospaceFont()
     font.setPointSize( fontSize );
   else
   {
+    const QgsSettings settings;
     const int fontSize = settings.value( u"qgis/stylesheet/fontPointSize"_s, 10 ).toInt();
     font.setPointSize( fontSize );
   }

@@ -244,7 +244,8 @@ void QgsCreatePolygonItemMapTool::polygonCaptured( const QgsCurvePolygon *polygo
 // QgsCreatePictureItemMapTool
 //
 
-const QgsSettingsEntryString *QgsCreatePictureItemMapTool::settingLastSourceFolder = new QgsSettingsEntryString( u"last-source-folder"_s, sTreePicture, QString(), u"Last used folder for picture annotation source files"_s );
+const QgsSettingsEntryString *QgsCreatePictureItemMapTool::settingLastSourceFolder
+  = new QgsSettingsEntryString( u"last-source-folder"_s, sTreePicture, QString(), u"Last used folder for picture annotation source files"_s );
 
 QgsCreatePictureItemMapTool::QgsCreatePictureItemMapTool( QgsMapCanvas *canvas, QgsAdvancedDigitizingDockWidget *cadDockWidget )
   : QgsMapToolAdvancedDigitizing( canvas, cadDockWidget )
@@ -270,7 +271,7 @@ void QgsCreatePictureItemMapTool::cadCanvasPressEvent( QgsMapMouseEvent *event )
     mFirstPoint = event->snapPoint();
     mRect.setRect( mFirstPoint.x(), mFirstPoint.y(), mFirstPoint.x(), mFirstPoint.y() );
 
-    mRubberBand.reset( new QgsRubberBand( mCanvas, Qgis::GeometryType::Polygon ) );
+    mRubberBand = make_qobject_unique<QgsRubberBand>( mCanvas, Qgis::GeometryType::Polygon );
     mRubberBand->setWidth( digitizingStrokeWidth() );
     QColor color = digitizingStrokeColor();
 
@@ -415,7 +416,7 @@ void QgsCreateRectangleTextItemMapTool::cadCanvasPressEvent( QgsMapMouseEvent *e
     mFirstPoint = event->snapPoint();
     mRect.setRect( mFirstPoint.x(), mFirstPoint.y(), mFirstPoint.x(), mFirstPoint.y() );
 
-    mRubberBand.reset( new QgsRubberBand( mCanvas, Qgis::GeometryType::Polygon ) );
+    mRubberBand = make_qobject_unique<QgsRubberBand>( mCanvas, Qgis::GeometryType::Polygon );
     mRubberBand->setWidth( digitizingStrokeWidth() );
     QColor color = digitizingStrokeColor();
 

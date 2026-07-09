@@ -21,6 +21,7 @@
 #include "qgslogger.h"
 #include "qgsmodelcomponentgraphicitem.h"
 #include "qgsmodeldesignerconfigwidget.h"
+#include "qgsmodeldesignerdialog.h"
 #include "qgsmodelgraphicsscene.h"
 #include "qgsmodelgroupboxdefinitionwidget.h"
 #include "qgsprocessingaggregatewidgetwrapper.h"
@@ -200,7 +201,9 @@ QgsAbstractProcessingParameterWidgetWrapper *QgsProcessingGuiRegistry::createPar
   return nullptr;
 }
 
-QgsProcessingModelerParameterWidget *QgsProcessingGuiRegistry::createModelerParameterWidget( QgsProcessingModelAlgorithm *model, const QString &childId, const QgsProcessingParameterDefinition *parameter, QgsProcessingContext &context )
+QgsProcessingModelerParameterWidget *QgsProcessingGuiRegistry::createModelerParameterWidget(
+  QgsProcessingModelAlgorithm *model, const QString &childId, const QgsProcessingParameterDefinition *parameter, QgsProcessingContext &context
+)
 {
   if ( !parameter )
     return nullptr;
@@ -213,7 +216,9 @@ QgsProcessingModelerParameterWidget *QgsProcessingGuiRegistry::createModelerPara
   return it.value()->createModelerWidgetWrapper( model, childId, parameter, context );
 }
 
-QgsProcessingAbstractParameterDefinitionWidget *QgsProcessingGuiRegistry::createParameterDefinitionWidget( const QString &type, QgsProcessingContext &context, const QgsProcessingParameterWidgetContext &widgetContext, const QgsProcessingParameterDefinition *definition, const QgsProcessingAlgorithm *algorithm )
+QgsProcessingAbstractParameterDefinitionWidget *QgsProcessingGuiRegistry::createParameterDefinitionWidget(
+  const QString &type, QgsProcessingContext &context, const QgsProcessingParameterWidgetContext &widgetContext, const QgsProcessingParameterDefinition *definition, const QgsProcessingAlgorithm *algorithm
+)
 {
   auto it = mParameterWidgetFactories.constFind( type );
   if ( it == mParameterWidgetFactories.constEnd() )
@@ -222,7 +227,9 @@ QgsProcessingAbstractParameterDefinitionWidget *QgsProcessingGuiRegistry::create
   return it.value()->createParameterDefinitionWidget( context, widgetContext, definition, algorithm );
 }
 
-QgsProcessingModelConfigWidget *QgsProcessingGuiRegistry::createModelConfigWidgetForComponent( QgsProcessingModelComponent *component, QgsProcessingContext &context, const QgsProcessingParameterWidgetContext &widgetContext ) const
+QgsProcessingModelConfigWidget *QgsProcessingGuiRegistry::createModelConfigWidgetForComponent(
+  QgsProcessingModelComponent *component, QgsProcessingContext &context, const QgsProcessingParameterWidgetContext &widgetContext
+) const
 {
   for ( auto it = mModelConfigWidgetFactories.constBegin(); it != mModelConfigWidgetFactories.constEnd(); ++it )
   {
@@ -248,7 +255,9 @@ bool QgsProcessingGuiInternalModelConfigWidgetFactory::supportsComponent( QgsPro
   return false;
 }
 
-QgsProcessingModelConfigWidget *QgsProcessingGuiInternalModelConfigWidgetFactory::createWidget( QgsProcessingModelComponent *component, QgsProcessingContext &context, const QgsProcessingParameterWidgetContext &widgetContext ) const
+QgsProcessingModelConfigWidget *QgsProcessingGuiInternalModelConfigWidgetFactory::createWidget(
+  QgsProcessingModelComponent *component, QgsProcessingContext &context, const QgsProcessingParameterWidgetContext &widgetContext
+) const
 {
   ( void ) context;
 

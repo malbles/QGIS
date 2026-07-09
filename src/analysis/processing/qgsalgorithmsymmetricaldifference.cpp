@@ -50,9 +50,11 @@ QString QgsSymmetricalDifferenceAlgorithm::groupId() const
 
 QString QgsSymmetricalDifferenceAlgorithm::shortHelpString() const
 {
-  return QObject::tr( "This algorithm extracts the portions of features from both the Input and Overlay layers that do not overlap. "
-                      "Overlapping areas between the two layers are removed. The attribute table of the Symmetrical Difference layer "
-                      "contains original attributes from both the Input and Overlay layers." );
+  return QObject::tr(
+    "This algorithm extracts the portions of features from both the Input and Overlay layers that do not overlap. "
+    "Overlapping areas between the two layers are removed. The attribute table of the Symmetrical Difference layer "
+    "contains original attributes from both the Input and Overlay layers."
+  );
 }
 
 QString QgsSymmetricalDifferenceAlgorithm::shortDescription() const
@@ -101,7 +103,10 @@ QVariantMap QgsSymmetricalDifferenceAlgorithm::processAlgorithm( const QVariantM
   const Qgis::WkbType geomTypeB = QgsWkbTypes::promoteNonPointTypesToMulti( sourceB->wkbType() );
 
   if ( geomTypeA != geomTypeB )
-    feedback->pushWarning( QObject::tr( "Performing symmetrical difference between layers with different geometry types (INPUT has %1 and OVERLAY has %2) can lead to unexpected results" ).arg( QgsWkbTypes::displayString( sourceA->wkbType() ), QgsWkbTypes::displayString( sourceB->wkbType() ) ) );
+    feedback->pushWarning(
+      QObject::tr( "Performing symmetrical difference between layers with different geometry types (INPUT has %1 and OVERLAY has %2) can lead to unexpected results" )
+        .arg( QgsWkbTypes::displayString( sourceA->wkbType() ), QgsWkbTypes::displayString( sourceB->wkbType() ) )
+    );
 
   const QString overlayFieldsPrefix = parameterAsString( parameters, u"OVERLAY_FIELDS_PREFIX"_s, context );
   const QgsFields fields = QgsProcessingUtils::combineFields( sourceA->fields(), sourceB->fields(), overlayFieldsPrefix );
@@ -123,13 +128,14 @@ QVariantMap QgsSymmetricalDifferenceAlgorithm::processAlgorithm( const QVariantM
     geometryParameters.setGridSize( parameterAsDouble( parameters, u"GRID_SIZE"_s, context ) );
   }
 
-  QgsOverlayUtils::difference( *sourceA, *sourceB, *sink, context, feedback, count, total, QgsOverlayUtils::OutputAB, geometryParameters, QgsOverlayUtils::SanitizeFlag::DontPromotePointGeometryToMultiPoint );
+  QgsOverlayUtils::difference( *sourceA, *sourceB, *sink, u"OUTPUT"_s, context, feedback, count, total, QgsOverlayUtils::OutputAB, geometryParameters, QgsOverlayUtils::SanitizeFlag::DontPromotePointGeometryToMultiPoint );
   if ( feedback->isCanceled() )
     return outputs;
 
-  QgsOverlayUtils::difference( *sourceB, *sourceA, *sink, context, feedback, count, total, QgsOverlayUtils::OutputBA, geometryParameters, QgsOverlayUtils::SanitizeFlag::DontPromotePointGeometryToMultiPoint );
+  QgsOverlayUtils::difference( *sourceB, *sourceA, *sink, u"OUTPUT"_s, context, feedback, count, total, QgsOverlayUtils::OutputBA, geometryParameters, QgsOverlayUtils::SanitizeFlag::DontPromotePointGeometryToMultiPoint );
 
   sink->finalize();
+  feedback->featureSinkFinalized( u"OUTPUT"_s );
 
   return outputs;
 }

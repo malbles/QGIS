@@ -26,16 +26,11 @@
 #include "qgscolorrampimpl.h"
 #include "qgscurve.h"
 #include "qgsfields.h"
-#include "qgsfillsymbol.h"
-#include "qgsfillsymbollayer.h"
 #include "qgsgeometryengine.h"
 #include "qgsgraduatedsymbolrenderer.h"
 #include "qgslinestring.h"
-#include "qgslinesymbol.h"
 #include "qgslinesymbollayer.h"
 #include "qgslogger.h"
-#include "qgsmarkersymbol.h"
-#include "qgsmarkersymbollayer.h"
 #include "qgsmulticurve.h"
 #include "qgsmultilinestring.h"
 #include "qgsmultipoint.h"
@@ -49,6 +44,7 @@
 #include "qgsrulebasedlabeling.h"
 #include "qgssinglesymbolrenderer.h"
 #include "qgssymbol.h"
+#include "qgssymbolconverteresrirest.h"
 #include "qgssymbollayer.h"
 #include "qgsvariantutils.h"
 #include "qgsvectorlayerlabeling.h"
@@ -630,294 +626,16 @@ QgsCoordinateReferenceSystem QgsArcGisRestUtils::convertSpatialReference( const 
   return crs;
 }
 
+std::unique_ptr< QgsSymbol > QgsArcGisRestUtils::convertSymbol( const QVariantMap &symbolData, QgsSymbolConverterContext &context )
+{
+  return QgsSymbolConverterEsriRest().createSymbol( symbolData, context );
+}
+
 std::unique_ptr< QgsSymbol > QgsArcGisRestUtils::convertSymbol( const QVariantMap &symbolData )
 {
-  const QString type = symbolData.value( u"type"_s ).toString();
-  if ( type == "esriSMS"_L1 )
-  {
-    // marker symbol
-    return parseEsriMarkerSymbolJson( symbolData );
-  }
-  else if ( type == "esriSLS"_L1 )
-  {
-    // line symbol
-    return parseEsriLineSymbolJson( symbolData );
-  }
-  else if ( type == "esriSFS"_L1 )
-  {
-    // fill symbol
-    return parseEsriFillSymbolJson( symbolData );
-  }
-  else if ( type == "esriPFS"_L1 )
-  {
-    return parseEsriPictureFillSymbolJson( symbolData );
-  }
-  else if ( type == "esriPMS"_L1 )
-  {
-    // picture marker
-    return parseEsriPictureMarkerSymbolJson( symbolData );
-  }
-  else if ( type == "esriTS"_L1 )
-  {
-    return parseEsriTextMarkerSymbolJson( symbolData );
-  }
-  return nullptr;
-}
-
-std::unique_ptr<QgsLineSymbol> QgsArcGisRestUtils::parseEsriLineSymbolJson( const QVariantMap &symbolData )
-{
-  QColor lineColor = convertColor( symbolData.value( u"color"_s ) );
-  if ( !lineColor.isValid() )
-    return nullptr;
-
-  bool ok = false;
-  double widthInPoints = symbolData.value( u"width"_s ).toDouble( &ok );
-  if ( !ok )
-    return nullptr;
-
-  QgsSymbolLayerList layers;
-  Qt::PenStyle penStyle = convertLineStyle( symbolData.value( u"style"_s ).toString() );
-  auto lineLayer = std::make_unique< QgsSimpleLineSymbolLayer >( lineColor, widthInPoints, penStyle );
-  lineLayer->setWidthUnit( Qgis::RenderUnit::Points );
-  layers.append( lineLayer.release() );
-
-  auto symbol = std::make_unique< QgsLineSymbol >( layers );
-  return symbol;
-}
-
-std::unique_ptr<QgsFillSymbol> QgsArcGisRestUtils::parseEsriFillSymbolJson( const QVariantMap &symbolData )
-{
-  QColor fillColor = convertColor( symbolData.value( u"color"_s ) );
-  Qt::BrushStyle brushStyle = convertFillStyle( symbolData.value( u"style"_s ).toString() );
-
-  const QVariantMap outlineData = symbolData.value( u"outline"_s ).toMap();
-  QColor lineColor = convertColor( outlineData.value( u"color"_s ) );
-  Qt::PenStyle penStyle = convertLineStyle( outlineData.value( u"style"_s ).toString() );
-  bool ok = false;
-  double penWidthInPoints = outlineData.value( u"width"_s ).toDouble( &ok );
-
-  QgsSymbolLayerList layers;
-  auto fillLayer = std::make_unique< QgsSimpleFillSymbolLayer >( fillColor, brushStyle, lineColor, penStyle, penWidthInPoints );
-  fillLayer->setStrokeWidthUnit( Qgis::RenderUnit::Points );
-  layers.append( fillLayer.release() );
-
-  auto symbol = std::make_unique< QgsFillSymbol >( layers );
-  return symbol;
-}
-
-std::unique_ptr<QgsFillSymbol> QgsArcGisRestUtils::parseEsriPictureFillSymbolJson( const QVariantMap &symbolData )
-{
-  bool ok = false;
-
-  double widthInPixels = symbolData.value( u"width"_s ).toInt( &ok );
-  if ( !ok )
-    return nullptr;
-
-  const double xScale = symbolData.value( u"xscale"_s ).toDouble( &ok );
-  if ( !qgsDoubleNear( xScale, 0.0 ) )
-    widthInPixels *= xScale;
-
-  const double angleCCW = symbolData.value( u"angle"_s ).toDouble( &ok );
-  double angleCW = 0;
-  if ( ok )
-    angleCW = -angleCCW;
-
-  const double xOffset = symbolData.value( u"xoffset"_s ).toDouble();
-  const double yOffset = symbolData.value( u"yoffset"_s ).toDouble();
-
-  QString symbolPath( symbolData.value( u"imageData"_s ).toString() );
-  symbolPath.prepend( "base64:"_L1 );
-
-  QgsSymbolLayerList layers;
-  auto fillLayer = std::make_unique< QgsRasterFillSymbolLayer >( symbolPath );
-  fillLayer->setWidth( widthInPixels );
-  fillLayer->setAngle( angleCW );
-  fillLayer->setSizeUnit( Qgis::RenderUnit::Points );
-  fillLayer->setOffset( QPointF( xOffset, yOffset ) );
-  fillLayer->setOffsetUnit( Qgis::RenderUnit::Points );
-  layers.append( fillLayer.release() );
-
-  const QVariantMap outlineData = symbolData.value( u"outline"_s ).toMap();
-  QColor lineColor = convertColor( outlineData.value( u"color"_s ) );
-  Qt::PenStyle penStyle = convertLineStyle( outlineData.value( u"style"_s ).toString() );
-  double penWidthInPoints = outlineData.value( u"width"_s ).toDouble( &ok );
-
-  auto lineLayer = std::make_unique< QgsSimpleLineSymbolLayer >( lineColor, penWidthInPoints, penStyle );
-  lineLayer->setWidthUnit( Qgis::RenderUnit::Points );
-  layers.append( lineLayer.release() );
-
-  auto symbol = std::make_unique< QgsFillSymbol >( layers );
-  return symbol;
-}
-
-Qgis::MarkerShape QgsArcGisRestUtils::parseEsriMarkerShape( const QString &style )
-{
-  if ( style == "esriSMSCircle"_L1 )
-    return Qgis::MarkerShape::Circle;
-  else if ( style == "esriSMSCross"_L1 )
-    return Qgis::MarkerShape::Cross;
-  else if ( style == "esriSMSDiamond"_L1 )
-    return Qgis::MarkerShape::Diamond;
-  else if ( style == "esriSMSSquare"_L1 )
-    return Qgis::MarkerShape::Square;
-  else if ( style == "esriSMSX"_L1 )
-    return Qgis::MarkerShape::Cross2;
-  else if ( style == "esriSMSTriangle"_L1 )
-    return Qgis::MarkerShape::Triangle;
-  else
-    return Qgis::MarkerShape::Circle;
-}
-
-std::unique_ptr<QgsMarkerSymbol> QgsArcGisRestUtils::parseEsriMarkerSymbolJson( const QVariantMap &symbolData )
-{
-  QColor fillColor = convertColor( symbolData.value( u"color"_s ) );
-  bool ok = false;
-  const double sizeInPoints = symbolData.value( u"size"_s ).toDouble( &ok );
-  if ( !ok )
-    return nullptr;
-  const double angleCCW = symbolData.value( u"angle"_s ).toDouble( &ok );
-  double angleCW = 0;
-  if ( ok )
-    angleCW = -angleCCW;
-
-  Qgis::MarkerShape shape = parseEsriMarkerShape( symbolData.value( u"style"_s ).toString() );
-
-  const double xOffset = symbolData.value( u"xoffset"_s ).toDouble();
-  const double yOffset = symbolData.value( u"yoffset"_s ).toDouble();
-
-  const QVariantMap outlineData = symbolData.value( u"outline"_s ).toMap();
-  QColor lineColor = convertColor( outlineData.value( u"color"_s ) );
-  Qt::PenStyle penStyle = convertLineStyle( outlineData.value( u"style"_s ).toString() );
-  double penWidthInPoints = outlineData.value( u"width"_s ).toDouble( &ok );
-
-  QgsSymbolLayerList layers;
-  auto markerLayer = std::make_unique< QgsSimpleMarkerSymbolLayer >( shape, sizeInPoints, angleCW, Qgis::ScaleMethod::ScaleArea, fillColor, lineColor );
-  markerLayer->setSizeUnit( Qgis::RenderUnit::Points );
-  markerLayer->setStrokeWidthUnit( Qgis::RenderUnit::Points );
-  markerLayer->setStrokeStyle( penStyle );
-  markerLayer->setStrokeWidth( penWidthInPoints );
-  markerLayer->setOffset( QPointF( xOffset, yOffset ) );
-  markerLayer->setOffsetUnit( Qgis::RenderUnit::Points );
-  layers.append( markerLayer.release() );
-
-  auto symbol = std::make_unique< QgsMarkerSymbol >( layers );
-  return symbol;
-}
-
-std::unique_ptr<QgsMarkerSymbol> QgsArcGisRestUtils::parseEsriPictureMarkerSymbolJson( const QVariantMap &symbolData )
-{
-  bool ok = false;
-  const double widthInPixels = symbolData.value( u"width"_s ).toInt( &ok );
-  if ( !ok )
-    return nullptr;
-  const double heightInPixels = symbolData.value( u"height"_s ).toInt( &ok );
-  if ( !ok )
-    return nullptr;
-
-  const double angleCCW = symbolData.value( u"angle"_s ).toDouble( &ok );
-  double angleCW = 0;
-  if ( ok )
-    angleCW = -angleCCW;
-
-  const double xOffset = symbolData.value( u"xoffset"_s ).toDouble();
-  const double yOffset = symbolData.value( u"yoffset"_s ).toDouble();
-
-  //const QString contentType = symbolData.value( u"contentType"_s ).toString();
-
-  QString symbolPath( symbolData.value( u"imageData"_s ).toString() );
-  symbolPath.prepend( "base64:"_L1 );
-
-  QgsSymbolLayerList layers;
-  auto markerLayer = std::make_unique< QgsRasterMarkerSymbolLayer >( symbolPath, widthInPixels, angleCW, Qgis::ScaleMethod::ScaleArea );
-  markerLayer->setSizeUnit( Qgis::RenderUnit::Points );
-
-  // only change the default aspect ratio if the server height setting requires this
-  if ( !qgsDoubleNear( static_cast< double >( heightInPixels ) / widthInPixels, markerLayer->defaultAspectRatio() ) )
-    markerLayer->setFixedAspectRatio( static_cast< double >( heightInPixels ) / widthInPixels );
-
-  markerLayer->setOffset( QPointF( xOffset, yOffset ) );
-  markerLayer->setOffsetUnit( Qgis::RenderUnit::Points );
-  layers.append( markerLayer.release() );
-
-  auto symbol = std::make_unique< QgsMarkerSymbol >( layers );
-  return symbol;
-}
-
-std::unique_ptr<QgsMarkerSymbol> QgsArcGisRestUtils::parseEsriTextMarkerSymbolJson( const QVariantMap &symbolData )
-{
-  QgsSymbolLayerList layers;
-
-  const QString fontFamily = symbolData.value( u"font"_s ).toMap().value( u"family"_s ).toString();
-
-  const QString chr = symbolData.value( u"text"_s ).toString();
-
-  const double pointSize = symbolData.value( u"font"_s ).toMap().value( u"size"_s ).toDouble();
-
-  const QColor color = convertColor( symbolData.value( u"color"_s ) );
-
-  const double esriAngle = symbolData.value( u"angle"_s ).toDouble();
-
-  const double angle = 90.0 - esriAngle;
-
-  auto markerLayer = std::make_unique< QgsFontMarkerSymbolLayer >( fontFamily, chr, pointSize, color, angle );
-
-  QColor strokeColor = convertColor( symbolData.value( u"borderLineColor"_s ) );
-  markerLayer->setStrokeColor( strokeColor );
-
-  double borderLineSize = symbolData.value( u"borderLineSize"_s ).toDouble();
-  markerLayer->setStrokeWidth( borderLineSize );
-
-  const QString fontStyle = symbolData.value( u"font"_s ).toMap().value( u"style"_s ).toString();
-  markerLayer->setFontStyle( fontStyle );
-
-  double xOffset = symbolData.value( u"xoffset"_s ).toDouble();
-  double yOffset = symbolData.value( u"yoffset"_s ).toDouble();
-
-  markerLayer->setOffset( QPointF( xOffset, yOffset ) );
-  markerLayer->setOffsetUnit( Qgis::RenderUnit::Points );
-
-  markerLayer->setSizeUnit( Qgis::RenderUnit::Points );
-  markerLayer->setStrokeWidthUnit( Qgis::RenderUnit::Points );
-
-  Qgis::HorizontalAnchorPoint hAlign = Qgis::HorizontalAnchorPoint::Center;
-  Qgis::VerticalAnchorPoint vAlign = Qgis::VerticalAnchorPoint::Center;
-
-  QString horizontalAnchorPoint = symbolData.value( u"horizontalAlignment"_s ).toString();
-  QString verticalAnchorPoint = symbolData.value( u"verticalAlignment"_s ).toString();
-
-  if ( horizontalAnchorPoint == QString( "center" ) )
-  {
-    hAlign = Qgis::HorizontalAnchorPoint::Center;
-  }
-  else if ( horizontalAnchorPoint == QString( "left" ) )
-  {
-    hAlign = Qgis::HorizontalAnchorPoint::Left;
-  }
-  else if ( horizontalAnchorPoint == QString( "right" ) )
-  {
-    hAlign = Qgis::HorizontalAnchorPoint::Right;
-  }
-
-  if ( verticalAnchorPoint == QString( "center" ) )
-  {
-    vAlign = Qgis::VerticalAnchorPoint::Center;
-  }
-  else if ( verticalAnchorPoint == QString( "top" ) )
-  {
-    vAlign = Qgis::VerticalAnchorPoint::Top;
-  }
-  else if ( verticalAnchorPoint == QString( "bottom" ) )
-  {
-    vAlign = Qgis::VerticalAnchorPoint::Bottom;
-  }
-
-  markerLayer->setHorizontalAnchorPoint( hAlign );
-  markerLayer->setVerticalAnchorPoint( vAlign );
-
-  layers.append( markerLayer.release() );
-
-  auto symbol = std::make_unique< QgsMarkerSymbol >( layers );
-  return symbol;
+  QgsReadWriteContext rwContext;
+  QgsSymbolConverterContext context( rwContext );
+  return convertSymbol( symbolData, context );
 }
 
 std::unique_ptr<QgsAbstractVectorLayerLabeling > QgsArcGisRestUtils::convertLabeling( const QVariantList &labelingData )
@@ -1049,15 +767,75 @@ std::unique_ptr<QgsAbstractVectorLayerLabeling > QgsArcGisRestUtils::convertLabe
   return std::make_unique< QgsRuleBasedLabeling >( root );
 }
 
-std::unique_ptr< QgsFeatureRenderer > QgsArcGisRestUtils::convertRenderer( const QVariantMap &rendererData )
+void QgsArcGisRestUtils::applyVisualVariables( const QVariantMap &rendererData, QgsSymbol *symbol, QgsSymbolConverterContext &context )
+{
+  if ( !symbol )
+    return;
+
+  const QVariantList visualVariablesData = rendererData.value( u"visualVariables"_s ).toList();
+  for ( const QVariant &visualVariable : visualVariablesData )
+  {
+    const QVariantMap visualVariableData = visualVariable.toMap();
+    const QString variableType = visualVariableData.value( u"type"_s ).toString();
+
+    if ( variableType == "rotationInfo"_L1 )
+    {
+      const QString field = visualVariableData.value( u"field"_s ).toString();
+      if ( field.isEmpty() )
+      {
+        // Check if it was a valueExpression that we don't support yet
+        if ( !visualVariableData.value( u"valueExpression"_s ).toString().isEmpty() )
+          context.pushWarning( QObject::tr( "ESRI rotationInfo valueExpression is not yet supported" ) );
+        continue;
+      }
+
+      const QString rotationType = visualVariableData.value( u"rotationType"_s ).toString();
+
+      QgsProperty angleProperty;
+      if ( rotationType == "arithmetic"_L1 )
+      {
+        // ArcGIS arithmetic: 0° = East, counter-clockwise
+        // QGIS: 0° = North, clockwise
+        // Conversion: QGIS_angle = 90 - ArcGIS_angle
+        angleProperty = QgsProperty::fromExpression( u"90 - %1"_s.arg( QgsExpression::quotedColumnRef( field ) ) );
+      }
+      else if ( rotationType == "geographic"_L1 )
+      {
+        // ArcGIS geographic: 0° = North, clockwise (same as QGIS)
+        angleProperty = QgsProperty::fromField( field );
+      }
+      else
+      {
+        context.pushWarning( QObject::tr( "ESRI rotationInfo rotationType '%1' is not supported" ).arg( rotationType ) );
+        continue;
+      }
+
+      // Apply rotation to all symbol layers
+      for ( int layer = 0; layer < symbol->symbolLayerCount(); ++layer )
+      {
+        symbol->symbolLayer( layer )->setDataDefinedProperty( QgsSymbolLayer::Property::Angle, angleProperty );
+      }
+    }
+    else
+    {
+      context.pushWarning( QObject::tr( "ESRI visualVariable type '%1' is not currently supported" ).arg( variableType ) );
+    }
+  }
+}
+
+std::unique_ptr< QgsFeatureRenderer > QgsArcGisRestUtils::convertRenderer( const QVariantMap &rendererData, QgsSymbolConverterContext &context )
 {
   const QString type = rendererData.value( u"type"_s ).toString();
   if ( type == "simple"_L1 )
   {
     const QVariantMap symbolProps = rendererData.value( u"symbol"_s ).toMap();
-    std::unique_ptr< QgsSymbol > symbol( convertSymbol( symbolProps ) );
+    std::unique_ptr< QgsSymbol > symbol( convertSymbol( symbolProps, context ) );
     if ( symbol )
+    {
+      // Apply visual variables (e.g., rotation) to the symbol
+      applyVisualVariables( rendererData, symbol.get(), context );
       return std::make_unique< QgsSingleSymbolRenderer >( symbol.release() );
+    }
     else
       return nullptr;
   }
@@ -1091,23 +869,30 @@ std::unique_ptr< QgsFeatureRenderer > QgsArcGisRestUtils::convertRenderer( const
       const QVariantMap categoryData = category.toMap();
       const QString value = categoryData.value( u"value"_s ).toString();
       const QString label = categoryData.value( u"label"_s ).toString();
-      std::unique_ptr< QgsSymbol > symbol( QgsArcGisRestUtils::convertSymbol( categoryData.value( u"symbol"_s ).toMap() ) );
+      std::unique_ptr< QgsSymbol > symbol( QgsArcGisRestUtils::convertSymbol( categoryData.value( u"symbol"_s ).toMap(), context ) );
       if ( symbol )
       {
+        // Apply visual variables (e.g., rotation) to the symbol
+        applyVisualVariables( rendererData, symbol.get(), context );
+
         categoryList.append( QgsRendererCategory( value, symbol.release(), label ) );
       }
     }
 
-    std::unique_ptr< QgsSymbol > defaultSymbol( convertSymbol( rendererData.value( u"defaultSymbol"_s ).toMap() ) );
+    std::unique_ptr< QgsSymbol > defaultSymbol( convertSymbol( rendererData.value( u"defaultSymbol"_s ).toMap(), context ) );
     if ( defaultSymbol )
     {
+      // Apply visual variables (e.g., rotation) to the symbol
+      applyVisualVariables( rendererData, defaultSymbol.get(), context );
+
       categoryList.append( QgsRendererCategory( QVariant(), defaultSymbol.release(), rendererData.value( u"defaultLabel"_s ).toString() ) );
     }
 
     if ( categoryList.empty() )
       return nullptr;
 
-    return std::make_unique< QgsCategorizedSymbolRenderer >( attribute, categoryList );
+    auto renderer = std::make_unique< QgsCategorizedSymbolRenderer >( attribute, categoryList );
+    return renderer;
   }
   else if ( type == "classBreaks"_L1 )
   {
@@ -1127,7 +912,7 @@ std::unique_ptr< QgsFeatureRenderer > QgsArcGisRestUtils::convertRenderer( const
     {
       symbolData = classBreakInfos.at( 0 ).toMap().value( u"symbol"_s ).toMap();
     }
-    std::unique_ptr< QgsSymbol > symbol( QgsArcGisRestUtils::convertSymbol( symbolData ) );
+    std::unique_ptr< QgsSymbol > symbol( QgsArcGisRestUtils::convertSymbol( symbolData, context ) );
     if ( !symbol )
       return nullptr;
 
@@ -1185,9 +970,14 @@ std::unique_ptr< QgsFeatureRenderer > QgsArcGisRestUtils::convertRenderer( const
 
         return std::make_unique< QgsSingleSymbolRenderer >( symbol.release() );
       }
+      else if ( variableType == "rotationInfo"_L1 )
+      {
+        // Rotation will be handled below after the renderer is created
+        continue;
+      }
       else
       {
-        QgsDebugError( u"ESRI visualVariable type %1 is not currently supported"_s.arg( variableType ) );
+        context.pushWarning( QObject::tr( "ESRI visualVariable type '%1' is not currently supported" ).arg( variableType ) );
       }
     }
 
@@ -1234,15 +1024,18 @@ std::unique_ptr< QgsFeatureRenderer > QgsArcGisRestUtils::convertRenderer( const
     }
     else if ( !esriMode.isEmpty() )
     {
-      QgsDebugError( u"ESRI classification mode %1 is not currently supported"_s.arg( esriMode ) );
+      context.pushWarning( QObject::tr( "ESRI classification mode '%1' is not currently supported" ).arg( esriMode ) );
     }
 
     for ( const QVariant &classBreakInfo : classBreakInfos )
     {
       const QVariantMap symbolData = classBreakInfo.toMap().value( u"symbol"_s ).toMap();
-      std::unique_ptr< QgsSymbol > symbol( QgsArcGisRestUtils::convertSymbol( symbolData ) );
+      std::unique_ptr< QgsSymbol > symbol( QgsArcGisRestUtils::convertSymbol( symbolData, context ) );
       double classMaxValue = classBreakInfo.toMap().value( u"classMaxValue"_s ).toDouble();
       const QString label = classBreakInfo.toMap().value( u"label"_s ).toString();
+
+      // Apply visual variables (e.g., rotation) to the symbol
+      applyVisualVariables( rendererData, symbol.get(), context );
 
       QgsRendererRange range;
 
@@ -1268,6 +1061,13 @@ std::unique_ptr< QgsFeatureRenderer > QgsArcGisRestUtils::convertRenderer( const
     return nullptr;
   }
   return nullptr;
+}
+
+std::unique_ptr< QgsFeatureRenderer > QgsArcGisRestUtils::convertRenderer( const QVariantMap &rendererData )
+{
+  QgsReadWriteContext rwContext;
+  QgsSymbolConverterContext context( rwContext );
+  return convertRenderer( rendererData, context );
 }
 
 QString QgsArcGisRestUtils::convertLabelingExpression( const QString &string )
@@ -1296,55 +1096,17 @@ QString QgsArcGisRestUtils::convertLabelingExpression( const QString &string )
 
 QColor QgsArcGisRestUtils::convertColor( const QVariant &colorData )
 {
-  const QVariantList colorParts = colorData.toList();
-  if ( colorParts.count() < 4 )
-    return QColor();
-
-  int red = colorParts.at( 0 ).toInt();
-  int green = colorParts.at( 1 ).toInt();
-  int blue = colorParts.at( 2 ).toInt();
-  int alpha = colorParts.at( 3 ).toInt();
-  return QColor( red, green, blue, alpha );
+  return QgsSymbolConverterEsriRest::convertColor( colorData );
 }
 
 Qt::PenStyle QgsArcGisRestUtils::convertLineStyle( const QString &style )
 {
-  if ( style == "esriSLSSolid"_L1 )
-    return Qt::SolidLine;
-  else if ( style == "esriSLSDash"_L1 )
-    return Qt::DashLine;
-  else if ( style == "esriSLSDashDot"_L1 )
-    return Qt::DashDotLine;
-  else if ( style == "esriSLSDashDotDot"_L1 )
-    return Qt::DashDotDotLine;
-  else if ( style == "esriSLSDot"_L1 )
-    return Qt::DotLine;
-  else if ( style == "esriSLSNull"_L1 )
-    return Qt::NoPen;
-  else
-    return Qt::SolidLine;
+  return QgsSymbolConverterEsriRest::convertLineStyle( style );
 }
 
 Qt::BrushStyle QgsArcGisRestUtils::convertFillStyle( const QString &style )
 {
-  if ( style == "esriSFSBackwardDiagonal"_L1 )
-    return Qt::BDiagPattern;
-  else if ( style == "esriSFSCross"_L1 )
-    return Qt::CrossPattern;
-  else if ( style == "esriSFSDiagonalCross"_L1 )
-    return Qt::DiagCrossPattern;
-  else if ( style == "esriSFSForwardDiagonal"_L1 )
-    return Qt::FDiagPattern;
-  else if ( style == "esriSFSHorizontal"_L1 )
-    return Qt::HorPattern;
-  else if ( style == "esriSFSNull"_L1 )
-    return Qt::NoBrush;
-  else if ( style == "esriSFSSolid"_L1 )
-    return Qt::SolidPattern;
-  else if ( style == "esriSFSVertical"_L1 )
-    return Qt::VerPattern;
-  else
-    return Qt::SolidPattern;
+  return QgsSymbolConverterEsriRest::convertFillStyle( style );
 }
 
 QDateTime QgsArcGisRestUtils::convertDateTime( const QVariant &value )
@@ -2030,4 +1792,274 @@ Qgis::ArcGisRestServiceType QgsArcGisRestUtils::serviceTypeFromString( const QSt
     return Qgis::ArcGisRestServiceType::SceneServer;
 
   return Qgis::ArcGisRestServiceType::Unknown;
+}
+
+Qgis::ArcGisRestServiceCapabilities QgsArcGisRestUtils::serviceCapabilitiesFromString( const QString &capabilities )
+{
+  const QStringList parts = capabilities.split( ',' );
+
+  Qgis::ArcGisRestServiceCapabilities res;
+  res.setFlag( Qgis::ArcGisRestServiceCapability::Query, parts.contains( "query"_L1, Qt::CaseInsensitive ) );
+  res.setFlag( Qgis::ArcGisRestServiceCapability::Map, parts.contains( "map"_L1, Qt::CaseInsensitive ) );
+  res.setFlag( Qgis::ArcGisRestServiceCapability::Update, parts.contains( "update"_L1, Qt::CaseInsensitive ) );
+  res.setFlag( Qgis::ArcGisRestServiceCapability::Delete, parts.contains( "delete"_L1, Qt::CaseInsensitive ) );
+  res.setFlag( Qgis::ArcGisRestServiceCapability::Create, parts.contains( "create"_L1, Qt::CaseInsensitive ) );
+  res.setFlag( Qgis::ArcGisRestServiceCapability::Image, parts.contains( "image"_L1, Qt::CaseInsensitive ) );
+  res.setFlag( Qgis::ArcGisRestServiceCapability::TilesOnly, parts.contains( "tilesonly"_L1, Qt::CaseInsensitive ) );
+
+  return res;
+}
+
+Qgis::DataType QgsArcGisRestUtils::dataTypeFromString( const QString &pixelType )
+{
+  if ( pixelType.compare( "U8"_L1, Qt::CaseInsensitive ) == 0
+       || pixelType.compare( "U4"_L1, Qt::CaseInsensitive ) == 0
+       || pixelType.compare( "U2"_L1, Qt::CaseInsensitive ) == 0
+       || pixelType.compare( "U1"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return Qgis::DataType::Byte;
+  }
+  else if ( pixelType.compare( "S8"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return Qgis::DataType::Int8;
+  }
+  else if ( pixelType.compare( "U16"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return Qgis::DataType::UInt16;
+  }
+  else if ( pixelType.compare( "S16"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return Qgis::DataType::Int16;
+  }
+  else if ( pixelType.compare( "U32"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return Qgis::DataType::UInt32;
+  }
+  else if ( pixelType.compare( "S32"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return Qgis::DataType::Int32;
+  }
+  else if ( pixelType.compare( "F32"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return Qgis::DataType::Float32;
+  }
+  else if ( pixelType.compare( "F64"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return Qgis::DataType::Float64;
+  }
+  else if ( pixelType.compare( "C64"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    // C64 = 32-bit real + 32-bit imaginary
+    return Qgis::DataType::CFloat32;
+  }
+  else if ( pixelType.compare( "C128"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    // C128 = 64-bit real + 64-bit imaginary
+    return Qgis::DataType::CFloat64;
+  }
+  else
+  {
+    QgsDebugError( u"Unknown pixelType: %1"_s.arg( pixelType ) );
+  }
+
+  return Qgis::DataType::UnknownDataType;
+}
+
+QgsArcGisRestUtils::PixelTypeLimitUsefulness QgsArcGisRestUtils::pixelTypeLimitUsefulness( const QString &pixelType )
+{
+  if ( pixelType.compare( "U8"_L1, Qt::CaseInsensitive ) == 0
+       || pixelType.compare( "U4"_L1, Qt::CaseInsensitive ) == 0
+       || pixelType.compare( "U2"_L1, Qt::CaseInsensitive ) == 0
+       || pixelType.compare( "U1"_L1, Qt::CaseInsensitive ) == 0
+       || pixelType.compare( "S8"_L1, Qt::CaseInsensitive ) == 0
+       || pixelType.compare( "U16"_L1, Qt::CaseInsensitive ) == 0
+       || pixelType.compare( "S16"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return PixelTypeLimitUsefulness { true, true };
+  }
+  else if ( pixelType.compare( "U32"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return PixelTypeLimitUsefulness { true, false };
+  }
+  else if ( pixelType.compare( "S32"_L1, Qt::CaseInsensitive ) == 0
+            || pixelType.compare( "F32"_L1, Qt::CaseInsensitive ) == 0
+            || pixelType.compare( "F64"_L1, Qt::CaseInsensitive ) == 0
+            || pixelType.compare( "C64"_L1, Qt::CaseInsensitive ) == 0
+            || pixelType.compare( "C128"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return PixelTypeLimitUsefulness { false, false };
+  }
+  else
+  {
+    QgsDebugError( u"Unknown pixelType: %1"_s.arg( pixelType ) );
+  }
+
+  return PixelTypeLimitUsefulness { false, false };
+}
+
+std::optional<std::pair<double, double> > QgsArcGisRestUtils::rangeForPixelType( const QString &pixelType )
+{
+  if ( pixelType.compare( "U8"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return std::make_pair( 0.0, 255.0 );
+  }
+  else if ( pixelType.compare( "U4"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return std::make_pair( 0.0, 15.0 );
+  }
+  else if ( pixelType.compare( "U2"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return std::make_pair( 0.0, 3.0 );
+  }
+  else if ( pixelType.compare( "U1"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return std::make_pair( 0.0, 1.0 );
+  }
+  else if ( pixelType.compare( "S8"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return std::make_pair( -128.0, 127.0 );
+  }
+  else if ( pixelType.compare( "U16"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return std::make_pair( 0.0, 65535.0 );
+  }
+  else if ( pixelType.compare( "S16"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return std::make_pair( -32768.0, 32767.0 );
+  }
+  else if ( pixelType.compare( "U32"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return std::make_pair( 0.0, static_cast<double>( std::numeric_limits<uint32_t>::max() ) );
+  }
+  else if ( pixelType.compare( "S32"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return std::make_pair( static_cast<double>( std::numeric_limits<int32_t>::lowest() ), static_cast<double>( std::numeric_limits<int32_t>::max() ) );
+  }
+  else if ( pixelType.compare( "F32"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return std::make_pair( static_cast<double>( std::numeric_limits<float>::lowest() ), static_cast<double>( std::numeric_limits<float>::max() ) );
+  }
+  else if ( pixelType.compare( "F64"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    return std::make_pair( std::numeric_limits<double>::lowest(), std::numeric_limits<double>::max() );
+  }
+  else if ( pixelType.compare( "C64"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    // C64 = 32-bit real + 32-bit imaginary
+    return std::make_pair( static_cast<double>( std::numeric_limits<float>::lowest() ), static_cast<double>( std::numeric_limits<float>::max() ) );
+  }
+  else if ( pixelType.compare( "C128"_L1, Qt::CaseInsensitive ) == 0 )
+  {
+    // C128 = 64-bit real + 64-bit imaginary
+    return std::make_pair( std::numeric_limits<double>::lowest(), std::numeric_limits<double>::max() );
+  }
+  else
+  {
+    QgsDebugError( u"Unknown pixelType: %1"_s.arg( pixelType ) );
+  }
+
+  return std::nullopt;
+}
+
+Qgis::RasterColorInterpretation QgsArcGisRestUtils::colorInterpretationFromBandName( const QString &bandName )
+{
+  if ( bandName.isEmpty() )
+  {
+    return Qgis::RasterColorInterpretation::Undefined;
+  }
+
+  if ( bandName.compare( "Red"_L1, Qt::CaseInsensitive ) == 0 )
+    return Qgis::RasterColorInterpretation::RedBand;
+  else if ( bandName.compare( "Green"_L1, Qt::CaseInsensitive ) == 0 )
+    return Qgis::RasterColorInterpretation::GreenBand;
+  else if ( bandName.compare( "Blue"_L1, Qt::CaseInsensitive ) == 0 )
+    return Qgis::RasterColorInterpretation::BlueBand;
+  else if ( bandName.compare( "Alpha"_L1, Qt::CaseInsensitive ) == 0 )
+    return Qgis::RasterColorInterpretation::AlphaBand;
+  else if ( bandName.compare( "NIR"_L1, Qt::CaseInsensitive ) == 0
+            || bandName.compare( "NearInfrared"_L1, Qt::CaseInsensitive ) == 0
+            || bandName.compare( "NearIR"_L1, Qt::CaseInsensitive ) == 0
+            || bandName.compare( "NarrowNIR"_L1, Qt::CaseInsensitive ) == 0 )
+    return Qgis::RasterColorInterpretation::NIRBand;
+  else if ( bandName.startsWith( "SWIR"_L1, Qt::CaseInsensitive ) )
+    return Qgis::RasterColorInterpretation::SWIRBand;
+  else if ( bandName.startsWith( "VRE"_L1, Qt::CaseInsensitive ) || bandName.compare( "RedEdge"_L1, Qt::CaseInsensitive ) == 0 )
+    return Qgis::RasterColorInterpretation::RedEdgeBand;
+  else if ( bandName.startsWith( "Coastal"_L1, Qt::CaseInsensitive ) )
+    return Qgis::RasterColorInterpretation::CoastalBand;
+  else if ( bandName.startsWith( "Pan"_L1, Qt::CaseInsensitive ) )
+    return Qgis::RasterColorInterpretation::PanBand;
+  else if ( bandName.startsWith( "Thermal"_L1, Qt::CaseInsensitive ) || bandName.startsWith( "TIR"_L1, Qt::CaseInsensitive ) )
+    return Qgis::RasterColorInterpretation::TIRBand;
+  else if ( bandName.compare( "Gray"_L1, Qt::CaseInsensitive ) == 0 || bandName.compare( "Grey"_L1, Qt::CaseInsensitive ) == 0 )
+    return Qgis::RasterColorInterpretation::GrayIndex;
+  else if ( bandName.compare( "Cyan"_L1, Qt::CaseInsensitive ) == 0 )
+    return Qgis::RasterColorInterpretation::CyanBand;
+  else if ( bandName.compare( "Magenta"_L1, Qt::CaseInsensitive ) == 0 )
+    return Qgis::RasterColorInterpretation::MagentaBand;
+  else if ( bandName.compare( "Yellow"_L1, Qt::CaseInsensitive ) == 0 )
+    return Qgis::RasterColorInterpretation::YellowBand;
+  else if ( bandName.compare( "Black"_L1, Qt::CaseInsensitive ) == 0 )
+    return Qgis::RasterColorInterpretation::BlackBand;
+  else if ( bandName.compare( "Hue"_L1, Qt::CaseInsensitive ) == 0 )
+    return Qgis::RasterColorInterpretation::HueBand;
+  else if ( bandName.compare( "Saturation"_L1, Qt::CaseInsensitive ) == 0 )
+    return Qgis::RasterColorInterpretation::SaturationBand;
+  else if ( bandName.compare( "Lightness"_L1, Qt::CaseInsensitive ) == 0 )
+    return Qgis::RasterColorInterpretation::LightnessBand;
+
+  // we don't log failures here -- a lot of bands will have non-interpretable names,
+  // eg "Band 1"
+  return Qgis::RasterColorInterpretation::Undefined;
+}
+
+double QgsArcGisRestUtils::defaultNoDataForDataType( Qgis::DataType type, bool &ok )
+{
+  ok = false;
+  switch ( type )
+  {
+    case Qgis::DataType::UnknownDataType:
+      return 0;
+
+    case Qgis::DataType::Byte:
+      ok = true;
+      return std::numeric_limits<quint8>::max();
+
+    case Qgis::DataType::Int8:
+      ok = true;
+      return std::numeric_limits<qint8>::lowest();
+
+    case Qgis::DataType::UInt16:
+      ok = true;
+      return std::numeric_limits<quint16>::max();
+
+    case Qgis::DataType::Int16:
+      ok = true;
+      return std::numeric_limits<qint16>::lowest();
+
+    case Qgis::DataType::UInt32:
+      ok = true;
+      return std::numeric_limits<quint32>::max();
+
+    case Qgis::DataType::Int32:
+      ok = true;
+      return std::numeric_limits<qint32>::lowest();
+
+    case Qgis::DataType::Float32:
+      ok = true;
+      return std::numeric_limits<float>::quiet_NaN();
+
+    case Qgis::DataType::Float64:
+      ok = true;
+      return std::numeric_limits<double>::quiet_NaN();
+
+    case Qgis::DataType::CInt16:
+    case Qgis::DataType::CInt32:
+    case Qgis::DataType::CFloat32:
+    case Qgis::DataType::CFloat64:
+    case Qgis::DataType::ARGB32:
+    case Qgis::DataType::ARGB32_Premultiplied:
+      return 0;
+  }
+  BUILTIN_UNREACHABLE
 }

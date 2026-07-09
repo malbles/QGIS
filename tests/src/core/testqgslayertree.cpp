@@ -28,7 +28,7 @@
 #include "qgsmarkersymbol.h"
 #include "qgsproject.h"
 #include "qgsrulebasedrenderer.h"
-#include "qgssettings.h"
+#include "qgssettingsentryimpl.h"
 #include "qgstest.h"
 #include "qgsvectorlayer.h"
 #include "qgsvectorlayerdiagramprovider.h"
@@ -75,6 +75,7 @@ class TestQgsLayerTree : public QObject
     void testSymbolText();
     void testNodeDepth();
     void testRasterSymbolNode();
+    void testSymbolLegendNodeSetData();
     void testLayersEditable();
     void testInsertLayerBelow();
     void testGroupReadWriteXMlServerProperties();
@@ -84,30 +85,17 @@ class TestQgsLayerTree : public QObject
 
     void testRendererLegend( QgsFeatureRenderer *renderer );
 
-    bool childVisiblity( int childIndex ) const
-    {
-      return mRoot->children().at( childIndex )->isVisible();
-    }
+    bool childVisiblity( int childIndex ) const { return mRoot->children().at( childIndex )->isVisible(); }
 
-    bool visibilityChecked( int childIndex ) const
-    {
-      return mRoot->children().at( childIndex )->itemVisibilityChecked();
-    }
+    bool visibilityChecked( int childIndex ) const { return mRoot->children().at( childIndex )->itemVisibilityChecked(); }
 
-    void setVisibilityChecked( int childIndex, bool state )
-    {
-      mRoot->children().at( childIndex )->setItemVisibilityChecked( state );
-    }
+    void setVisibilityChecked( int childIndex, bool state ) { mRoot->children().at( childIndex )->setItemVisibilityChecked( state ); }
 };
 
 void TestQgsLayerTree::initTestCase()
 {
   QgsApplication::init();
   QgsApplication::initQgis();
-
-  QCoreApplication::setOrganizationName( u"QGIS"_s );
-  QCoreApplication::setOrganizationDomain( u"qgis.org"_s );
-  QCoreApplication::setApplicationName( u"QGIS-TEST"_s );
 
   mRoot = new QgsLayerTreeGroup();
   mRoot->addGroup( u"grp1"_s );
@@ -334,8 +322,7 @@ void TestQgsLayerTree::testRestrictedSymbolSize()
   QgsSymbolLegendNode::MINIMUM_SIZE = -1;
   QgsSymbolLegendNode::MAXIMUM_SIZE = -1;
 
-  QgsSettings settings;
-  settings.setValue( "/qgis/legendsymbolMaximumSize", maxSize );
+  QgsSymbolLegendNode::settingsLegendSymbolMaximumSize->setValue( maxSize );
 
   //new memory layer
   QgsVectorLayer *vl = new QgsVectorLayer( u"Point?field=col1:integer"_s, u"vl"_s, u"memory"_s );
@@ -390,8 +377,7 @@ void TestQgsLayerTree::testRestrictedSymbolSizeWithGeometryGenerator()
   QgsSymbolLegendNode::MINIMUM_SIZE = -1;
   QgsSymbolLegendNode::MAXIMUM_SIZE = -1;
 
-  QgsSettings settings;
-  settings.setValue( "/qgis/legendsymbolMaximumSize", maxSize );
+  QgsSymbolLegendNode::settingsLegendSymbolMaximumSize->setValue( maxSize );
 
   //new memory layer
   QgsVectorLayer *vl = new QgsVectorLayer( u"Point?field=col1:integer"_s, u"vl"_s, u"memory"_s );
@@ -974,11 +960,12 @@ void TestQgsLayerTree::testCustomNodeDeleted()
   group->insertCustomNode( -1, u"custom-id-2"_s, u"Custom Name 2"_s );
 
   QList< QgsLayerTreeNode * > order = root.layerAndCustomNodeOrder();
-  group->removeCustomNode( u"non-existent"_s );
-  QCOMPARE( order, root.layerAndCustomNodeOrder() );
+  QVERIFY( !root.findCustomNode( u"non-existent"_s ) );
 
   QVERIFY( group->findCustomNodeIds().contains( u"custom-id-2"_s ) );
-  group->removeCustomNode( u"custom-id-2"_s );
+  QgsLayerTreeCustomNode *node = root.findCustomNode( u"custom-id-2"_s );
+  QVERIFY( node );
+  qobject_cast< QgsLayerTreeGroup * >( node->parent() )->removeCustomNode( node );
   QVERIFY( order != root.layerAndCustomNodeOrder() );
   QVERIFY( !group->findCustomNodeIds().contains( u"custom-id-2"_s ) );
 }
@@ -1222,6 +1209,57 @@ void TestQgsLayerTree::testGroupReadWriteXMlServerProperties()
   mRoot->removeChildNode( group );
 }
 
+void TestQgsLayerTree::testSymbolLegendNodeSetData()
+{
+  QgsVectorLayer *vl = new QgsVectorLayer( u"Point?field=col1:integer"_s, u"vl"_s, u"memory"_s );
+  QVERIFY( vl->isValid() );
+
+  QgsProject project;
+  project.addMapLayer( vl );
+
+  QgsCategorizedSymbolRenderer *renderer = new QgsCategorizedSymbolRenderer();
+  renderer->setClassAttribute( u"col1"_s );
+  renderer->setSourceSymbol( QgsSymbol::defaultSymbol( Qgis::GeometryType::Point ) );
+  renderer->addCategory( QgsRendererCategory( "a", QgsSymbol::defaultSymbol( Qgis::GeometryType::Point ), u"a"_s ) );
+  renderer->addCategory( QgsRendererCategory( "b", QgsSymbol::defaultSymbol( Qgis::GeometryType::Point ), u"b"_s ) );
+  vl->setRenderer( renderer );
+
+  QgsLayerTree *root = new QgsLayerTree();
+  QgsLayerTreeLayer *n = new QgsLayerTreeLayer( vl );
+  root->addChildNode( n );
+  QgsLayerTreeModel *m = new QgsLayerTreeModel( root, nullptr );
+  m->refreshLayerLegend( n );
+
+  const QList<QgsLayerTreeModelLegendNode *> nodes = m->layerLegendNodes( n );
+  QCOMPARE( nodes.length(), 2 );
+  QgsSymbolLegendNode *node = static_cast<QgsSymbolLegendNode *>( nodes.at( 0 ) );
+
+  // unsupported role returns false
+  QVERIFY( !node->setData( u"anything"_s, Qt::DecorationRole ) );
+
+  // Qt::EditRole sets the user label on the node and propagates it to the
+  // renderer
+  QVERIFY( node->setData( u"renamed"_s, Qt::EditRole ) );
+  QCOMPARE( node->data( Qt::DisplayRole ).toString(), u"renamed"_s );
+  QCOMPARE( renderer->legendSymbolItems().at( 0 ).label(), u"renamed"_s );
+
+  // Qt::CheckStateRole – nodes from a categorized renderer are initially
+  // checked
+  QCOMPARE( node->data( Qt::CheckStateRole ), Qt::Checked );
+
+  // uncheck via setData
+  QVERIFY( node->setData( Qt::Unchecked, Qt::CheckStateRole ) );
+  QCOMPARE( node->data( Qt::CheckStateRole ), Qt::Unchecked );
+
+  // check again via setData
+  QVERIFY( node->setData( Qt::Checked, Qt::CheckStateRole ) );
+  QCOMPARE( node->data( Qt::CheckStateRole ), Qt::Checked );
+
+  //cleanup
+  delete m;
+  delete root;
+  delete vl;
+}
 
 QGSTEST_MAIN( TestQgsLayerTree )
 #include "testqgslayertree.moc"

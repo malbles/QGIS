@@ -86,7 +86,8 @@ class TestQgsLegendRenderer : public QgsTest
 
   public:
     TestQgsLegendRenderer()
-      : QgsTest( u"Legend Renderer Tests"_s, u"legend"_s ) {}
+      : QgsTest( u"Legend Renderer Tests"_s, u"legend"_s )
+    {}
 
   private slots:
     void initTestCase();    // will be called before the first testfunction is executed.
@@ -160,6 +161,8 @@ class TestQgsLegendRenderer : public QgsTest
     void testFilteredVector();
     void testFilteredRaster();
 
+    void testMaximumLineLength();
+
   private:
     QgsLayerTree *mRoot = nullptr;
     QgsVectorLayer *mVL1 = nullptr; // line
@@ -175,13 +178,7 @@ class TestQgsLegendRenderer : public QgsTest
 
     static void setStandardTestFont( QgsLegendSettings &settings, const QString &style = u"Roman"_s )
     {
-      for ( const Qgis::LegendComponent st :
-            {
-              Qgis::LegendComponent::Title,
-              Qgis::LegendComponent::Group,
-              Qgis::LegendComponent::Subgroup,
-              Qgis::LegendComponent::SymbolLabel
-            } )
+      for ( const Qgis::LegendComponent st : { Qgis::LegendComponent::Title, Qgis::LegendComponent::Group, Qgis::LegendComponent::Subgroup, Qgis::LegendComponent::SymbolLabel } )
       {
         QFont font( QgsFontUtils::getStandardTestFont( style ) );
         QgsTextFormat f = settings.rstyle( st ).textFormat();
@@ -311,7 +308,8 @@ void TestQgsLegendRenderer::init()
 
   mRL = new QgsRasterLayer( QString( tempFileName ), u"Raster Layer"_s, u"gdal"_s );
 
-  auto rasterRenderer = std::make_unique<TestRasterRenderer>( mRL->dataProvider(), 1, QgsPalettedRasterRenderer::ClassData { QgsPalettedRasterRenderer::Class( 1, QColor( 0, 0, 0 ), u"1"_s ), QgsPalettedRasterRenderer::Class( 2, QColor( 255, 255, 255 ), u"2"_s ) } );
+  auto rasterRenderer = std::make_unique<
+    TestRasterRenderer>( mRL->dataProvider(), 1, QgsPalettedRasterRenderer::ClassData { QgsPalettedRasterRenderer::Class( 1, QColor( 0, 0, 0 ), u"1"_s ), QgsPalettedRasterRenderer::Class( 2, QColor( 255, 255, 255 ), u"2"_s ) } );
   mRL->setRenderer( rasterRenderer.release() );
 
   QgsProject::instance()->addMapLayer( mRL );
@@ -2243,6 +2241,21 @@ void TestQgsLegendRenderer::testFilteredRaster()
   QgsLegendRenderer legendRenderer( &legendModel, settings );
   legendRenderer.proxyModel()->setFilters( Qgis::LayerFilter::RasterLayer );
 
+  const QImage res = renderLegend( legendRenderer );
+  QVERIFY( _verifyImage( res, testName ) );
+}
+
+void TestQgsLegendRenderer::testMaximumLineLength()
+{
+  const QString testName = u"legend_auto_wrap"_s;
+
+  QgsLayerTreeModel legendModel( mRoot );
+
+  QgsLegendSettings settings;
+  settings.setTitle( u"A long legend title"_s );
+  settings.setAutoWrapLinesAfter( 25 );
+  setStandardTestFont( settings, u"Bold"_s );
+  QgsLegendRenderer legendRenderer( &legendModel, settings );
   const QImage res = renderLegend( legendRenderer );
   QVERIFY( _verifyImage( res, testName ) );
 }

@@ -75,6 +75,7 @@
 %Include auto_generated/qgsfilefiltergenerator.sip
 %Include auto_generated/qgsfileutils.sip
 %Include auto_generated/qgsfontutils.sip
+%Include auto_generated/qgsgdalutils.sip
 %Include auto_generated/qgsgeometryoptions.sip
 %Include auto_generated/qgsgeometrysimplifier.sip
 %Include auto_generated/qgsgeometryvalidator.sip
@@ -192,6 +193,7 @@
 %Include auto_generated/qgsstoredexpressionmanager.sip
 %Include auto_generated/qgsstringstatisticalsummary.sip
 %Include auto_generated/qgsstringutils.sip
+%Include auto_generated/qgssunpositioncalculator.sip
 %Include auto_generated/qgstablecell.sip
 %Include auto_generated/qgstaskmanager.sip
 %Include auto_generated/qgstemporalcontroller.sip
@@ -229,6 +231,15 @@
 %Include auto_generated/./3d/qgsabstract3dsymbol.sip
 %Include auto_generated/./3d/qgsabstract3drenderer.sip
 %Include auto_generated/./3d/qgsabstractpointcloud3drenderer.sip
+%Include auto_generated/./3d/materials/qgsabstractmaterialsettings.sip
+%Include auto_generated/./3d/materials/qgsgoochmaterialsettings.sip
+%Include auto_generated/./3d/materials/qgsmaterialregistry.sip
+%Include auto_generated/./3d/materials/qgsmetalroughmaterialsettings.sip
+%Include auto_generated/./3d/materials/qgsmetalroughtexturedmaterialsettings.sip
+%Include auto_generated/./3d/materials/qgsnullmaterialsettings.sip
+%Include auto_generated/./3d/materials/qgsphongmaterialsettings.sip
+%Include auto_generated/./3d/materials/qgsphongtexturedmaterialsettings.sip
+%Include auto_generated/./3d/materials/qgssimplelinematerialsettings.sip
 %Include auto_generated/actions/qgsaction.sip
 %Include auto_generated/actions/qgsactionmanager.sip
 %Include auto_generated/actions/qgsactionscope.sip
@@ -373,6 +384,7 @@
 %Include auto_generated/geometry/qgsrectangle.sip
 %Include auto_generated/geometry/qgsreferencedgeometry.sip
 %Include auto_generated/geometry/qgsregularpolygon.sip
+%Include auto_generated/geometry/qgssimplecurve.sip
 %Include auto_generated/geometry/qgssphere.sip
 %Include auto_generated/geometry/qgssurface.sip
 %Include auto_generated/geometry/qgstriangle.sip
@@ -566,6 +578,7 @@
 %Include auto_generated/metadata/qgslayermetadataproviderregistry.sip
 %Include auto_generated/network/qgsblockingnetworkrequest.sip
 %Include auto_generated/network/qgsfiledownloader.sip
+%Include auto_generated/network/qgsfileuploader.sip
 %Include auto_generated/network/qgsnetworkaccessmanager.sip
 %Include auto_generated/network/qgsnetworkcontentfetcher.sip
 %Include auto_generated/network/qgsnetworkcontentfetcherregistry.sip
@@ -773,6 +786,8 @@
 %Include auto_generated/symbology/qgssymbollayerutils.sip
 %Include auto_generated/symbology/qgssymbolrendercontext.sip
 %Include auto_generated/symbology/qgsvectorfieldsymbollayer.sip
+%Include auto_generated/symbology/converters/qgssymbolconverter.sip
+%Include auto_generated/symbology/converters/qgssymbolconverterregistry.sip
 %Include auto_generated/textrenderer/qgsfontmanager.sip
 %Include auto_generated/textrenderer/qgstextbackgroundsettings.sip
 %Include auto_generated/textrenderer/qgstextblock.sip

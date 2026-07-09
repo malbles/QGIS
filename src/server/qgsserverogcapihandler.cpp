@@ -88,8 +88,7 @@ void QgsServerOgcApiHandler::handleRequest( const QgsServerApiContext &context )
 QString QgsServerOgcApiHandler::contentTypeForAccept( const QString &accept ) const
 {
   const auto constContentTypes( QgsServerOgcApi::contentTypeMimes() );
-  for ( auto it = constContentTypes.constBegin();
-        it != constContentTypes.constEnd(); ++it )
+  for ( auto it = constContentTypes.constBegin(); it != constContentTypes.constEnd(); ++it )
   {
     const auto constValues = it.value();
     for ( const auto &value : constValues )
@@ -126,6 +125,9 @@ void QgsServerOgcApiHandler::write( json &data, const QgsServerApiContext &conte
       break;
     case QgsServerOgcApi::ContentType::XML:
       // Not handled yet
+      break;
+    case QgsServerOgcApi::ContentType::FLATGEOBUF:
+      // Handled separately in the handler if supported, so do nothing here
       break;
   }
 }
@@ -205,13 +207,43 @@ json QgsServerOgcApiHandler::schema( const QgsServerApiContext &context ) const
 json QgsServerOgcApiHandler::link( const QgsServerApiContext &context, const QgsServerOgcApi::Rel &linkType, const QgsServerOgcApi::ContentType contentType, const std::string &title ) const
 {
   json l {
-    { "href", href( context, "/", QgsServerOgcApi::contentTypeToExtension( contentType ) )
-    },
+    { "href", href( context, "/", QgsServerOgcApi::contentTypeToExtension( contentType ) ) },
     { "rel", QgsServerOgcApi::relToString( linkType ) },
     { "type", QgsServerOgcApi::mimeType( contentType ) },
     { "title", title != "" ? title : linkTitle() },
   };
   return l;
+}
+
+QString QgsServerOgcApiHandler::headerLink(
+  const QgsServerApiContext &context, const QgsServerOgcApi::Rel &linkType, const QgsServerOgcApi::ContentType contentType, const QgsServerOgcApi::Profile &profile, const QString &title
+) const
+{
+  const QString profileStr { profile != QgsServerOgcApi::Profile::NONE ? QgsServerOgcApi::profileToString( profile ) : QString() };
+  QString hrefStr = QString::fromStdString( href( context, "/", QgsServerOgcApi::contentTypeToExtension( contentType ) ) );
+
+  if ( !profileStr.isEmpty() )
+  {
+    hrefStr += u"&profile="_s + profileStr;
+  }
+
+  QString titleStr = !title.isEmpty() ? title : QString::fromStdString( linkTitle() );
+  titleStr.replace( '\\', "\\\\"_L1 );
+  titleStr.replace( '"', "\\\""_L1 );
+
+  QString linkStr = u"<%1>; rel=\"%2\"; title=\"%3\"; type=\"%4\""_s.arg(
+    QString::fromStdString( href( context, "/", QgsServerOgcApi::contentTypeToExtension( contentType ) ) ),
+    QString::fromStdString( QgsServerOgcApi::relToString( linkType ) ),
+    titleStr,
+    QString::fromStdString( QgsServerOgcApi::mimeType( contentType ) )
+  );
+
+  if ( !profileStr.isEmpty() )
+  {
+    linkStr += QString( "; profile=\"%1\"" ).arg( profileStr );
+  }
+
+  return linkStr;
 }
 
 json QgsServerOgcApiHandler::links( const QgsServerApiContext &context ) const
@@ -251,7 +283,7 @@ const QString QgsServerOgcApiHandler::staticPath( const QgsServerApiContext &con
 
 const QString QgsServerOgcApiHandler::templatePath( const QgsServerApiContext &context ) const
 {
-  // resources/server/api + /ogc/templates/ + operationId + .html
+  // resources/server/api + /ogc/templates/ + apiRootPath() + / + operationId() + .html
   QString path { context.serverInterface()->serverSettings()->apiResourcesDirectory() };
   path += "/ogc/templates"_L1;
   path += context.apiRootPath();
@@ -260,7 +292,6 @@ const QString QgsServerOgcApiHandler::templatePath( const QgsServerApiContext &c
   path += ".html"_L1;
   return path;
 }
-
 
 void QgsServerOgcApiHandler::htmlDump( const json &data, const QgsServerApiContext &context ) const
 {
@@ -286,9 +317,7 @@ void QgsServerOgcApiHandler::htmlDump( const json &data, const QgsServerApiConte
     Environment env { QString( pathInfo.dir().path() + QDir::separator() ).toStdString() };
 
     // For template debugging:
-    env.add_callback( "json_dump", 0, [data]( Arguments & ) {
-      return data.dump();
-    } );
+    env.add_callback( "json_dump", 0, [data]( Arguments & ) { return data.dump(); } );
 
     // Path manipulation: appends a directory path to the current url
     env.add_callback( "path_append", 1, [context]( Arguments &args ) {
@@ -405,9 +434,7 @@ void QgsServerOgcApiHandler::htmlDump( const json &data, const QgsServerApiConte
 
 
     // Returns true if a string begins with the provided string prefix, false otherwise
-    env.add_callback( "starts_with", 2, []( Arguments &args ) {
-      return string_view::starts_with( args.at( 0 )->get<std::string_view>(), args.at( 1 )->get<std::string_view>() );
-    } );
+    env.add_callback( "starts_with", 2, []( Arguments &args ) { return string_view::starts_with( args.at( 0 )->get<std::string_view>(), args.at( 1 )->get<std::string_view>() ); } );
 
     // Returns "null" string if object is null else string object representation
     env.add_callback( "if_nullptr_null_str", 1, []( Arguments &args ) {
@@ -468,7 +495,27 @@ QgsServerOgcApi::ContentType QgsServerOgcApiHandler::contentTypeFromRequest( con
     }
     else
     {
-      QgsMessageLog::logMessage( u"The client requested an unsupported extension: %1"_s.arg( extension ), u"Server"_s, Qgis::MessageLevel::Warning );
+      // Hardcoded aliases
+#if 0
+    // This not supported yet but I am leaving it here because
+    // I am very optimistic that it will be supported soon!
+
+      if ( ( extension.compare( u"JSONFG"_s, Qt::CaseSensitivity::CaseInsensitive ) == 0 ) || ( extension.compare( u"JSONFG-PLUS"_s, Qt::CaseSensitivity::CaseInsensitive ) == 0 ) )
+      {
+        result = QgsServerOgcApi::ContentType::JSON;
+        found = true;
+      }
+      else
+#endif
+      if ( extension.compare( u"FGB"_s, Qt::CaseSensitivity::CaseInsensitive ) == 0 )
+      {
+        result = QgsServerOgcApi::ContentType::FLATGEOBUF;
+        found = true;
+      }
+      else
+      {
+        QgsMessageLog::logMessage( u"The client requested an unsupported extension: %1"_s.arg( extension ), u"Server"_s, Qgis::MessageLevel::Warning );
+      }
     }
   }
   // ... then "Accept"
@@ -577,11 +624,8 @@ QgsVectorLayer *QgsServerOgcApiHandler::layerFromCollectionId( const QgsServerAp
 
 json QgsServerOgcApiHandler::defaultResponse()
 {
-  static json defRes = {
-    { "description", "An error occurred." },
-    { "content", { { "application/json", { { "schema", { { "$ref", "#/components/schemas/exception" } } } } }, { "text/html", { { "schema", { { "type", "string" } } } } } }
-    }
-  };
+  static json defRes
+    = { { "description", "An error occurred." }, { "content", { { "application/json", { { "schema", { { "$ref", "#/components/schemas/exception" } } } } }, { "text/html", { { "schema", { { "type", "string" } } } } } } } };
   return defRes;
 }
 

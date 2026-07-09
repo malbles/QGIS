@@ -58,7 +58,14 @@ struct QgsOracleLayerProperty
 
     bool operator==( const QgsOracleLayerProperty &other ) const
     {
-      return types == other.types && srids == other.srids && ownerName == other.ownerName && tableName == other.tableName && geometryColName == other.geometryColName && isView == other.isView && pkCols == other.pkCols && sql == other.sql;
+      return types == other.types
+             && srids == other.srids
+             && ownerName == other.ownerName
+             && tableName == other.tableName
+             && geometryColName == other.geometryColName
+             && isView == other.isView
+             && pkCols == other.pkCols
+             && sql == other.sql;
     }
 
     QgsOracleLayerProperty at( int i ) const
@@ -102,14 +109,18 @@ struct QgsOracleLayerProperty
       return QString( "%1.%2.%3 type=%4 srid=%5 view=%6%7 sql=%8" )
         .arg( ownerName, tableName, geometryColName, typeString, sridString, isView ? "yes" : "no", isView ? QString( " pk=%1" ).arg( pkCols.join( "|" ) ) : "", sql );
     }
+#else
+    inline QString toString() const { return QString(); }
 #endif
 };
 
 
 #include "qgsconfig.h"
 constexpr int sOracleConQueryLogFilePrefixLength = CMAKE_SOURCE_DIR[sizeof( CMAKE_SOURCE_DIR ) - 1] == '/' ? sizeof( CMAKE_SOURCE_DIR ) + 1 : sizeof( CMAKE_SOURCE_DIR );
-#define LoggedExec( _class, query ) execLogged( query, true, nullptr, _class, QString( QString( __FILE__ ).mid( sOracleConQueryLogFilePrefixLength ) + ':' + QString::number( __LINE__ ) + " (" + __FUNCTION__ + ")" ) )
-#define LoggedExecPrivate( _class, query, sql, params ) execLogged( query, sql, params, _class, QString( QString( __FILE__ ).mid( sOracleConQueryLogFilePrefixLength ) + ':' + QString::number( __LINE__ ) + " (" + __FUNCTION__ + ")" ) )
+#define LoggedExec( _class, query ) \
+  execLogged( query, true, nullptr, _class, QString( QString( __FILE__ ).mid( sOracleConQueryLogFilePrefixLength ) + ':' + QString::number( __LINE__ ) + " (" + __FUNCTION__ + ")" ) )
+#define LoggedExecPrivate( _class, query, sql, params ) \
+  execLogged( query, sql, params, _class, QString( QString( __FILE__ ).mid( sOracleConQueryLogFilePrefixLength ) + ':' + QString::number( __LINE__ ) + " (" + __FUNCTION__ + ")" ) )
 
 
 /**

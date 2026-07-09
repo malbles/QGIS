@@ -18,11 +18,11 @@
 #include "qgspdalalgorithmbase.h"
 
 #include "qgsapplication.h"
-#include "qgscopcprovider.h"
 #include "qgspointcloudexpression.h"
 #include "qgspointcloudlayer.h"
 #include "qgsrasterlayerelevationproperties.h"
 #include "qgsrunprocess.h"
+#include "qgsvirtualpointcloudprovider.h"
 
 #include <QRegularExpression>
 #include <QString>
@@ -47,6 +47,7 @@ void QgsPdalAlgorithmBase::enableElevationPropertiesPostProcessor( bool enable )
 
 QString QgsPdalAlgorithmBase::wrenchExecutableBinary() const
 {
+#if QT_CONFIG( process )
   QString wrenchExecutable = QProcessEnvironment::systemEnvironment().value( u"QGIS_WRENCH_EXECUTABLE"_s );
   if ( wrenchExecutable.isEmpty() )
   {
@@ -57,6 +58,9 @@ QString QgsPdalAlgorithmBase::wrenchExecutableBinary() const
 #endif
   }
   return QString( wrenchExecutable );
+#else
+  return QString();
+#endif
 }
 
 void QgsPdalAlgorithmBase::createCommonParameters()
@@ -74,7 +78,12 @@ void QgsPdalAlgorithmBase::createVpcOutputFormatParameter()
 {
   const QStringList outputFormats { u"COPC"_s, u"LAZ"_s, u"LAS"_s };
   auto paramVpcOutputFormat = std::make_unique<QgsProcessingParameterEnum>( u"VPC_OUTPUT_FORMAT"_s, QObject::tr( "VPC Output Format" ), outputFormats, false, u"COPC"_s );
-  paramVpcOutputFormat->setHelp( QObject::tr( "Specify the underlying format in which data are stored for VPC output.\nSelect COPC if you need to render the output VPC in QGIS. LAZ/LAS may be faster to process, however only allow rendering of the point cloud extents." ) );
+  paramVpcOutputFormat->setHelp(
+    QObject::tr(
+      "Specify the underlying format in which data are stored for VPC output.\nSelect COPC if you need to render the output VPC in QGIS. LAZ/LAS may be faster to process, however only allow "
+      "rendering of the point cloud extents."
+    )
+  );
   paramVpcOutputFormat->setFlags( paramVpcOutputFormat->flags() | Qgis::ProcessingParameterFlag::Advanced );
   addParameter( paramVpcOutputFormat.release() );
 }
@@ -93,20 +102,12 @@ void QgsPdalAlgorithmBase::applyCommonParameters( QStringList &arguments, QgsCoo
     if ( crs.isValid() )
     {
       const QgsRectangle extent = parameterAsExtent( parameters, u"FILTER_EXTENT"_s, context, crs );
-      arguments << u"--bounds=([%1, %2], [%3, %4])"_s
-                     .arg( extent.xMinimum() )
-                     .arg( extent.xMaximum() )
-                     .arg( extent.yMinimum() )
-                     .arg( extent.yMaximum() );
+      arguments << u"--bounds=([%1, %2], [%3, %4])"_s.arg( extent.xMinimum() ).arg( extent.xMaximum() ).arg( extent.yMinimum() ).arg( extent.yMaximum() );
     }
     else
     {
       const QgsRectangle extent = parameterAsExtent( parameters, u"FILTER_EXTENT"_s, context );
-      arguments << u"--bounds=([%1, %2], [%3, %4])"_s
-                     .arg( extent.xMinimum() )
-                     .arg( extent.xMaximum() )
-                     .arg( extent.yMinimum() )
-                     .arg( extent.yMaximum() );
+      arguments << u"--bounds=([%1, %2], [%3, %4])"_s.arg( extent.xMinimum() ).arg( extent.xMaximum() ).arg( extent.yMinimum() ).arg( extent.yMaximum() );
     }
   }
 }
@@ -123,12 +124,13 @@ void QgsPdalAlgorithmBase::applyThreadsParameter( QStringList &arguments, QgsPro
 
 QString QgsPdalAlgorithmBase::fixOutputFileName( const QString &inputFileName, const QString &outputFileName, QgsProcessingContext &context )
 {
-  bool inputIsVpc = inputFileName.endsWith( u".vpc"_s, Qt::CaseInsensitive );
-  bool isTempOutput = outputFileName.startsWith( QgsProcessingUtils::tempFolder(), Qt::CaseInsensitive );
+  const bool inputIsVpc = isVpcFileName( inputFileName );
+  const bool isTempOutput = outputFileName.startsWith( QgsProcessingUtils::tempFolder(), Qt::CaseInsensitive );
   if ( inputIsVpc && isTempOutput )
   {
-    QFileInfo fi( outputFileName );
-    QString newFileName = fi.path() + '/' + fi.completeBaseName() + u".vpc"_s;
+    const QFileInfo ifi( inputFileName );
+    const QFileInfo ofi( outputFileName );
+    const QString newFileName = u"%1/%2.%3"_s.arg( ofi.path(), ofi.completeBaseName(), ifi.suffix().toLower() );
 
     if ( context.willLoadLayerOnCompletion( outputFileName ) )
     {
@@ -144,12 +146,14 @@ QString QgsPdalAlgorithmBase::fixOutputFileName( const QString &inputFileName, c
 
 void QgsPdalAlgorithmBase::checkOutputFormat( const QString &inputFileName, const QString &outputFileName )
 {
-  bool inputIsVpc = inputFileName.endsWith( u".vpc"_s, Qt::CaseInsensitive );
-  bool outputIsVpc = outputFileName.endsWith( u".vpc"_s, Qt::CaseInsensitive );
+  const bool inputIsVpc = isVpcFileName( inputFileName );
+  const bool outputIsVpc = isVpcFileName( outputFileName );
   if ( !inputIsVpc && outputIsVpc )
     throw QgsProcessingException(
-      QObject::tr( "This algorithm does not support output to VPC if input is not a VPC. Please use LAS or LAZ as the output format. "
-                   "To create a VPC please use \"Build virtual point cloud (VPC)\" algorithm." )
+      QObject::tr(
+        "This algorithm does not support output to VPC if input is not a VPC. Please use LAS or LAZ as the output format. "
+        "To create a VPC please use \"Build virtual point cloud (VPC)\" algorithm."
+      )
     );
 }
 
@@ -187,6 +191,7 @@ QVariantMap QgsPdalAlgorithmBase::processAlgorithm( const QVariantMap &parameter
 
 void QgsPdalAlgorithmBase::runWrenchProcess( const QStringList &processArgs, QgsProcessingFeedback *feedback )
 {
+#if QT_CONFIG( process )
   const QString wrenchPath = wrenchExecutableBinary();
 
   if ( !QFileInfo::exists( wrenchPath ) )
@@ -214,9 +219,7 @@ void QgsPdalAlgorithmBase::runWrenchProcess( const QStringList &processArgs, Qgs
   QString buffer;
 
   QgsBlockingProcess wrenchProcess( wrenchPath, processArgs );
-  wrenchProcess.setStdErrHandler( [feedback]( const QByteArray &ba ) {
-    feedback->reportError( ba.trimmed() );
-  } );
+  wrenchProcess.setStdErrHandler( [feedback]( const QByteArray &ba ) { feedback->reportError( ba.trimmed() ); } );
   wrenchProcess.setStdOutHandler( [feedback, &progress, &buffer]( const QByteArray &ba ) {
     QString data( ba );
 
@@ -279,6 +282,9 @@ void QgsPdalAlgorithmBase::runWrenchProcess( const QStringList &processArgs, Qgs
   {
     throw QgsProcessingException( QObject::tr( "Process returned error code %1" ).arg( res ) );
   }
+#else
+  throw QgsProcessingException( QObject::tr( "This algorithm requires a QGIS installation with Qt process feature enabled" ) );
+#endif
 }
 
 QVariantMap QgsPdalAlgorithmBase::getOutputs( const QVariantMap &parameters, QgsProcessingContext &context )
@@ -353,17 +359,24 @@ QString QgsPdalAlgorithmBase::copcIndexFile( const QString &filename )
 
 void QgsPdalAlgorithmBase::applyVpcOutputFormatParameter( const QString &outputFilename, QStringList &arguments, const QVariantMap &parameters, QgsProcessingContext &context, QgsProcessingFeedback *feedback )
 {
-  if ( outputFilename.endsWith( u".vpc"_s, Qt::CaseInsensitive ) )
+  if ( isVpcFileName( outputFilename ) )
   {
     QString vpcOutputFormat = parameterAsEnumString( parameters, u"VPC_OUTPUT_FORMAT"_s, context );
 
     if ( vpcOutputFormat == "LAZ"_L1 || vpcOutputFormat == "LAS"_L1 )
     {
-      feedback->pushWarning( QObject::tr( "The VPC file will contain LAS or LAZ files. Such files cannot be properly rendered in QGIS, only the point cloud extents will be displayed. Use COPC as VPC Output Format for proper rendering." ) );
+      feedback->pushWarning(
+        QObject::tr( "The VPC file will contain LAS or LAZ files. Such files cannot be properly rendered in QGIS, only the point cloud extents will be displayed. Use COPC as VPC Output Format for proper rendering." )
+      );
     }
 
     arguments << u"--vpc-output-format=%1"_s.arg( vpcOutputFormat.toLower() );
   }
+}
+
+bool QgsPdalAlgorithmBase::isVpcFileName( const QString &name )
+{
+  return name.endsWith( ".vpc"_L1, Qt::CaseInsensitive ) || name.endsWith( ".vpz"_L1, Qt::CaseInsensitive );
 }
 
 ///@endcond

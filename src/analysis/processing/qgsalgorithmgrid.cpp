@@ -57,7 +57,13 @@ QString QgsGridAlgorithm::groupId() const
 
 void QgsGridAlgorithm::initAlgorithm( const QVariantMap & )
 {
-  addParameter( new QgsProcessingParameterEnum( u"TYPE"_s, QObject::tr( "Grid type" ), QStringList() << QObject::tr( "Point" ) << QObject::tr( "Line" ) << QObject::tr( "Rectangle (Polygon)" ) << QObject::tr( "Diamond (Polygon)" ) << QObject::tr( "Hexagon (Polygon)" ), false, 0 ) );
+  addParameter( new QgsProcessingParameterEnum(
+    u"TYPE"_s,
+    QObject::tr( "Grid type" ),
+    QStringList() << QObject::tr( "Point" ) << QObject::tr( "Line" ) << QObject::tr( "Rectangle (Polygon)" ) << QObject::tr( "Diamond (Polygon)" ) << QObject::tr( "Hexagon (Polygon)" ),
+    false,
+    0
+  ) );
 
   addParameter( new QgsProcessingParameterExtent( u"EXTENT"_s, QObject::tr( "Grid extent" ) ) );
 
@@ -74,15 +80,16 @@ void QgsGridAlgorithm::initAlgorithm( const QVariantMap & )
 
 QString QgsGridAlgorithm::shortHelpString() const
 {
-  return QObject::tr( "This algorithm creates a vector layer with a grid covering a given extent. "
-                      "Elements in the grid can be points, lines or polygons. The size and/or "
-                      "placement of each element in the grid is defined using a horizontal and "
-                      "vertical spacing. The CRS of the output layer must be defined. The grid extent "
-                      "and the spacing values must be expressed in the coordinates and units of "
-                      "this CRS. The top-left point (minX, maxY) is used as the reference point. "
-                      "That means that, at that point, an element is guaranteed to be placed. "
-                      "Unless the width and height of the selected extent is a multiple of the "
-                      "selected spacing, that is not true for the other points that define that extent."
+  return QObject::tr(
+    "This algorithm creates a vector layer with a grid covering a given extent. "
+    "Elements in the grid can be points, lines or polygons. The size and/or "
+    "placement of each element in the grid is defined using a horizontal and "
+    "vertical spacing. The CRS of the output layer must be defined. The grid extent "
+    "and the spacing values must be expressed in the coordinates and units of "
+    "this CRS. The top-left point (minX, maxY) is used as the reference point. "
+    "That means that, at that point, an element is guaranteed to be placed. "
+    "Unless the width and height of the selected extent is a multiple of the "
+    "selected spacing, that is not true for the other points that define that extent."
   );
 }
 QString QgsGridAlgorithm::shortDescription() const
@@ -180,6 +187,7 @@ QVariantMap QgsGridAlgorithm::processAlgorithm( const QVariantMap &parameters, Q
   }
 
   sink->finalize();
+  feedback->featureSinkFinalized( u"OUTPUT"_s );
   QVariantMap outputs;
   outputs.insert( u"OUTPUT"_s, dest );
   return outputs;
@@ -211,6 +219,8 @@ void QgsGridAlgorithm::createPointGrid( std::unique_ptr<QgsFeatureSink> &sink, Q
       f.setAttributes( QgsAttributes() << id << x << y << x + mHSpacing << y + mVSpacing << row << col );
       if ( !sink->addFeature( f, QgsFeatureSink::FastInsert ) )
         throw QgsProcessingException( writeFeatureError( sink.get(), QVariantMap(), u"OUTPUT"_s ) );
+      else
+        feedback->featureAddedToSink( u"OUTPUT"_s );
 
       id++;
       cnt++;
@@ -281,6 +291,8 @@ void QgsGridAlgorithm::createLineGrid( std::unique_ptr<QgsFeatureSink> &sink, Qg
     f.setAttributes( QgsAttributes() << id << mGridExtent.xMinimum() << y << mGridExtent.xMaximum() << y );
     if ( !sink->addFeature( f, QgsFeatureSink::FastInsert ) )
       throw QgsProcessingException( writeFeatureError( sink.get(), QVariantMap(), u"OUTPUT"_s ) );
+    else
+      feedback->featureAddedToSink( u"OUTPUT"_s );
     y = y - vSpace[cnt % 2];
 
     id++;
@@ -319,6 +331,8 @@ void QgsGridAlgorithm::createLineGrid( std::unique_ptr<QgsFeatureSink> &sink, Qg
     f.setAttributes( QgsAttributes() << id << x << mGridExtent.yMaximum() << x << mGridExtent.yMinimum() );
     if ( !sink->addFeature( f, QgsFeatureSink::FastInsert ) )
       throw QgsProcessingException( writeFeatureError( sink.get(), QVariantMap(), u"OUTPUT"_s ) );
+    else
+      feedback->featureAddedToSink( u"OUTPUT"_s );
     x = x + hSpace[cnt % 2];
 
     id++;
@@ -372,6 +386,8 @@ void QgsGridAlgorithm::createRectangleGrid( std::unique_ptr<QgsFeatureSink> &sin
       f.setAttributes( QgsAttributes() << id << x1 << y1 << x2 << y2 << row << col );
       if ( !sink->addFeature( f, QgsFeatureSink::FastInsert ) )
         throw QgsProcessingException( writeFeatureError( sink.get(), QVariantMap(), u"OUTPUT"_s ) );
+      else
+        feedback->featureAddedToSink( u"OUTPUT"_s );
 
       id++;
       cnt++;
@@ -450,6 +466,8 @@ void QgsGridAlgorithm::createDiamondGrid( std::unique_ptr<QgsFeatureSink> &sink,
       f.setAttributes( QgsAttributes() << id << x1 << y1 << x3 << y3 );
       if ( !sink->addFeature( f, QgsFeatureSink::FastInsert ) )
         throw QgsProcessingException( writeFeatureError( sink.get(), QVariantMap(), u"OUTPUT"_s ) );
+      else
+        feedback->featureAddedToSink( u"OUTPUT"_s );
 
       id++;
       cnt++;
@@ -481,7 +499,11 @@ void QgsGridAlgorithm::createHexagonGrid( std::unique_ptr<QgsFeatureSink> &sink,
 
   if ( mHOverlay < 0 )
   {
-    throw QgsProcessingException( QObject::tr( "To preserve symmetry, hspacing is fixed relative to vspacing\n hspacing is fixed at: %1 and hoverlay is fixed at: %2 hoverlay cannot be negative. Increase hoverlay." ).arg( mHSpacing ).arg( mHOverlay ) );
+    throw QgsProcessingException(
+      QObject::tr( "To preserve symmetry, hspacing is fixed relative to vspacing\n hspacing is fixed at: %1 and hoverlay is fixed at: %2 hoverlay cannot be negative. Increase hoverlay." )
+        .arg( mHSpacing )
+        .arg( mHOverlay )
+    );
   }
 
   const double halfVSpacing = mVSpacing / 2;
@@ -539,6 +561,8 @@ void QgsGridAlgorithm::createHexagonGrid( std::unique_ptr<QgsFeatureSink> &sink,
       f.setAttributes( QgsAttributes() << id << x1 << y1 << x4 << y3 << row << col );
       if ( !sink->addFeature( f, QgsFeatureSink::FastInsert ) )
         throw QgsProcessingException( writeFeatureError( sink.get(), QVariantMap(), u"OUTPUT"_s ) );
+      else
+        feedback->featureAddedToSink( u"OUTPUT"_s );
 
       id++;
       cnt++;

@@ -56,7 +56,7 @@
 
 using namespace Qt::StringLiterals;
 
-uint qHash( const Vertex &v )
+size_t qHash( const Vertex &v )
 {
   return qHash( v.layer ) ^ qHash( v.fid ) ^ qHash( v.vertexId );
 }
@@ -159,10 +159,7 @@ class OneFeatureFilter : public QgsPointLocator::MatchFilter
       , fid( fid )
     {}
 
-    bool acceptMatch( const QgsPointLocator::Match &match ) override
-    {
-      return match.layer() == layer && match.featureId() == fid;
-    }
+    bool acceptMatch( const QgsPointLocator::Match &match ) override { return match.layer() == layer && match.featureId() == fid; }
 
   private:
     const QgsVectorLayer *layer = nullptr;
@@ -181,7 +178,8 @@ class MatchCollectingFilter : public QgsPointLocator::MatchFilter
     QgsVertexTool *vertextool = nullptr;
 
     MatchCollectingFilter( QgsVertexTool *vertextool )
-      : vertextool( vertextool ) {}
+      : vertextool( vertextool )
+    {}
 
     bool acceptMatch( const QgsPointLocator::Match &match ) override
     {
@@ -216,7 +214,8 @@ class SelectedMatchFilter : public QgsPointLocator::MatchFilter
   public:
     explicit SelectedMatchFilter( double tol, QgsLockedFeature *selectedFeature )
       : mTolerance( tol )
-      , mLockedFeature( selectedFeature ) {}
+      , mLockedFeature( selectedFeature )
+    {}
 
     bool acceptMatch( const QgsPointLocator::Match &match ) override
     {
@@ -299,12 +298,12 @@ QgsVertexTool::QgsVertexTool( QgsMapCanvas *canvas, QgsAdvancedDigitizingDockWid
   mEndpointMarker->setVisible( false );
 
   // Control polygon for NURBS curves
-  mNurbsControlPolygonBand.reset( new QgsRubberBand( canvas, Qgis::GeometryType::Line ) );
+  mNurbsControlPolygonBand = make_qobject_unique<QgsRubberBand>( canvas, Qgis::GeometryType::Line );
   applyNurbsControlPolygonStyle( mNurbsControlPolygonBand.get() );
   mNurbsControlPolygonBand->setVisible( false );
 
   // Poly-Bézier visualization
-  mBezierMarker.reset( new QgsBezierMarker( canvas, this ) );
+  mBezierMarker = make_qobject_unique<QgsBezierMarker>( canvas, this );
 }
 
 QgsVertexTool::~QgsVertexTool()
@@ -696,11 +695,9 @@ void QgsVertexTool::cadCanvasReleaseEvent( QgsMapMouseEvent *e )
     }
     if ( showInvisibleFeatureWarning )
     {
-      QgisApp::instance()->messageBar()->pushMessage(
-        tr( "Invisible vertices were not selected" ),
-        tr( "Vertices belonging to features that are not displayed on the map canvas were not selected." ),
-        Qgis::MessageLevel::Warning
-      );
+      QgisApp::instance()
+        ->messageBar()
+        ->pushMessage( tr( "Invisible vertices were not selected" ), tr( "Vertices belonging to features that are not displayed on the map canvas were not selected." ), Qgis::MessageLevel::Warning );
     }
 
     // here's where we give precedence to vertices of selected features in case there's no bound (locked) feature
@@ -973,9 +970,8 @@ QgsPointLocator::Match QgsVertexTool::snapToEditableLayer( QgsMapMouseEvent *e )
         }
         else
         {
-          layerSettings = QgsSnappingConfig::IndividualLayerSettings(
-            vlayer == currentVlayer, static_cast<Qgis::SnappingTypes>( Qgis::SnappingType::Vertex | Qgis::SnappingType::Segment ), tol, Qgis::MapToolUnit::Project, 0.0, 0.0
-          );
+          layerSettings = QgsSnappingConfig::
+            IndividualLayerSettings( vlayer == currentVlayer, static_cast<Qgis::SnappingTypes>( Qgis::SnappingType::Vertex | Qgis::SnappingType::Segment ), tol, Qgis::MapToolUnit::Project, 0.0, 0.0 );
         }
 
         config.setIndividualLayerSettings( vlayer, layerSettings );
@@ -1016,7 +1012,8 @@ QgsPointLocator::Match QgsVertexTool::snapToEditableLayer( QgsMapMouseEvent *e )
       }
       else
       {
-        layerSettings = QgsSnappingConfig::IndividualLayerSettings( vlayer->isEditable(), static_cast<Qgis::SnappingTypes>( Qgis::SnappingType::Vertex | Qgis::SnappingType::Segment ), tol, Qgis::MapToolUnit::Project, 0.0, 0.0 );
+        layerSettings = QgsSnappingConfig::
+          IndividualLayerSettings( vlayer->isEditable(), static_cast<Qgis::SnappingTypes>( Qgis::SnappingType::Vertex | Qgis::SnappingType::Segment ), tol, Qgis::MapToolUnit::Project, 0.0, 0.0 );
       }
       config.setIndividualLayerSettings( vlayer, layerSettings );
     }
@@ -1665,7 +1662,7 @@ void QgsVertexTool::updateVertexEditor( QgsVectorLayer *layer, QgsFeatureId fid 
       return;
     }
 
-    mLockedFeature.reset( new QgsLockedFeature( fid, layer, mCanvas ) );
+    mLockedFeature = make_qobject_unique<QgsLockedFeature>( fid, layer, mCanvas );
     connect( mLockedFeature->layer(), &QgsVectorLayer::featureDeleted, this, &QgsVertexTool::cleanEditor );
     for ( int i = 0; i < mSelectedVertices.length(); ++i )
     {
@@ -2779,54 +2776,6 @@ void QgsVertexTool::deleteVertex()
     toDeleteGrouped[vertex.layer][vertex.fid].append( vertex.vertexId );
   }
 
-  // de-duplicate vertices in linear rings - if there is the first vertex selected,
-  // then also the last vertex will be selected - but we want just one out of the pair
-  // also deselect vertices of parts or rings that will be automatically removed
-  QHash<QgsVectorLayer *, QHash<QgsFeatureId, QList<int>>>::iterator lIt = toDeleteGrouped.begin();
-  for ( ; lIt != toDeleteGrouped.end(); ++lIt )
-  {
-    QgsVectorLayer *layer = lIt.key();
-    QHash<QgsFeatureId, QList<int>> &featuresDict = lIt.value();
-
-    QHash<QgsFeatureId, QList<int>>::iterator fIt = featuresDict.begin();
-    for ( ; fIt != featuresDict.end(); ++fIt )
-    {
-      QgsFeatureId fid = fIt.key();
-      QList<int> &vertexIds = fIt.value();
-      if ( vertexIds.count() >= 2 && ( layer->geometryType() == Qgis::GeometryType::Polygon || layer->geometryType() == Qgis::GeometryType::Line ) )
-      {
-        std::sort( vertexIds.begin(), vertexIds.end(), std::greater<int>() );
-        const QgsGeometry geom = cachedGeometry( layer, fid );
-        const QgsAbstractGeometry *ag = geom.constGet();
-        QVector<QVector<int>> numberOfVertices;
-        for ( int p = 0; p < ag->partCount(); ++p )
-        {
-          numberOfVertices.append( QVector<int>() );
-          for ( int r = 0; r < ag->ringCount( p ); ++r )
-          {
-            numberOfVertices[p].append( ag->vertexCount( p, r ) );
-          }
-        }
-        // polygonal rings with less than 4 vertices get deleted automatically
-        // linear parts with less than 2 vertices get deleted automatically
-        // let's keep that number and don't remove vertices beyond that point
-        const int minAllowedVertices = geom.type() == Qgis::GeometryType::Polygon ? 4 : 2;
-        for ( int i = vertexIds.count() - 1; i >= 0; --i )
-        {
-          QgsVertexId vid;
-          if ( geom.vertexIdFromVertexNr( vertexIds[i], vid ) )
-          {
-            // also don't try to delete the first vertex of a ring since we have already deleted the last
-            if ( numberOfVertices.at( vid.part ).at( vid.ring ) < minAllowedVertices || ( 0 == vid.vertex && geom.type() == Qgis::GeometryType::Polygon ) )
-              vertexIds.removeOne( vertexIds.at( i ) );
-            else
-              --numberOfVertices[vid.part][vid.ring];
-          }
-        }
-      }
-    }
-  }
-
   // main for cycle to delete all selected vertices
   QHash<QgsVectorLayer *, QHash<QgsFeatureId, QList<int>>>::iterator it = toDeleteGrouped.begin();
   for ( ; it != toDeleteGrouped.end(); ++it )
@@ -2843,17 +2792,11 @@ void QgsVertexTool::deleteVertex()
       QgsFeatureId fid = it2.key();
       QList<int> &vertexIds = it2.value();
 
-      Qgis::VectorEditResult res = Qgis::VectorEditResult::Success;
-      std::sort( vertexIds.begin(), vertexIds.end(), std::greater<int>() );
-      for ( int vertexId : vertexIds )
+      Qgis::VectorEditResult res = layer->deleteVertices( fid, QSet<int>( vertexIds.begin(), vertexIds.end() ) );
+      if ( res != Qgis::VectorEditResult::Success && res != Qgis::VectorEditResult::EmptyGeometry )
       {
-        if ( res != Qgis::VectorEditResult::EmptyGeometry )
-          res = layer->deleteVertex( fid, vertexId );
-        if ( res != Qgis::VectorEditResult::EmptyGeometry && res != Qgis::VectorEditResult::Success )
-        {
-          QgsDebugError( u"failed to delete vertex %1 %2 %3!"_s.arg( layer->name() ).arg( fid ).arg( vertexId ) );
-          success = false;
-        }
+        QgsDebugError( u"failed to delete vertices from feature %1 %2!"_s.arg( layer->name() ).arg( fid ) );
+        success = false;
       }
 
       if ( res == Qgis::VectorEditResult::EmptyGeometry )
@@ -2913,11 +2856,7 @@ void QgsVertexTool::toggleVertexCurve()
   else
   {
     // TODO support more than just 1 vertex
-    QgisApp::instance()->messageBar()->pushMessage(
-      tr( "Could not convert vertex" ),
-      tr( "Conversion can only be done on exactly one vertex." ),
-      Qgis::Info
-    );
+    QgisApp::instance()->messageBar()->pushMessage( tr( "Could not convert vertex" ), tr( "Conversion can only be done on exactly one vertex." ), Qgis::Info );
     return;
   }
 
@@ -2925,11 +2864,7 @@ void QgsVertexTool::toggleVertexCurve()
   {
     if ( mDraggingVertexType == AddingVertex || mDraggingVertexType == AddingEndpoint )
     {
-      QgisApp::instance()->messageBar()->pushMessage(
-        tr( "Could not convert vertex" ),
-        tr( "Cannot convert vertex before it is added." ),
-        Qgis::Warning
-      );
+      QgisApp::instance()->messageBar()->pushMessage( tr( "Could not convert vertex" ), tr( "Cannot convert vertex before it is added." ), Qgis::Warning );
       return;
     }
     stopDragging();
@@ -2939,11 +2874,9 @@ void QgsVertexTool::toggleVertexCurve()
 
   if ( !QgsWkbTypes::isCurvedType( layer->wkbType() ) )
   {
-    QgisApp::instance()->messageBar()->pushMessage(
-      tr( "Could not convert vertex" ),
-      tr( "Layer of type %1 does not support curved geometries." ).arg( QgsWkbTypes::displayString( layer->wkbType() ) ),
-      Qgis::Warning
-    );
+    QgisApp::instance()
+      ->messageBar()
+      ->pushMessage( tr( "Could not convert vertex" ), tr( "Layer of type %1 does not support curved geometries." ).arg( QgsWkbTypes::displayString( layer->wkbType() ) ), Qgis::Warning );
     return;
   }
 
@@ -2962,11 +2895,7 @@ void QgsVertexTool::toggleVertexCurve()
   else
   {
     layer->destroyEditCommand();
-    QgisApp::instance()->messageBar()->pushMessage(
-      tr( "Could not convert vertex" ),
-      tr( "Start/end of vertices of features and arcs can not be converted." ),
-      Qgis::Warning
-    );
+    QgisApp::instance()->messageBar()->pushMessage( tr( "Could not convert vertex" ), tr( "Start/end of vertices of features and arcs can not be converted." ), Qgis::Warning );
   }
 
   QgsVertexEditor *editor = vertexEditor();

@@ -23,7 +23,6 @@
 #include "qgsfeature.h"
 #include "qgsfeaturesource.h"
 #include "qgsgeometryengine.h"
-#include "qgsprocessing.h"
 #include "qgsstringstatisticalsummary.h"
 #include "qgsvectorlayer.h"
 
@@ -49,27 +48,30 @@ void QgsJoinByLocationSummaryAlgorithm::initAlgorithm( const QVariantMap & )
 
   addParameter( new QgsProcessingParameterFeatureSource( u"JOIN"_s, QObject::tr( "By comparing to" ), QList<int>() << static_cast<int>( Qgis::ProcessingSourceType::VectorAnyGeometry ) ) );
 
-  addParameter( new QgsProcessingParameterField( u"JOIN_FIELDS"_s, QObject::tr( "Fields to summarise (leave empty to use all fields)" ), QVariant(), u"JOIN"_s, Qgis::ProcessingFieldParameterDataType::Any, true, true ) );
+  addParameter(
+    new QgsProcessingParameterField( u"JOIN_FIELDS"_s, QObject::tr( "Fields to summarise (leave empty to use all fields)" ), QVariant(), u"JOIN"_s, Qgis::ProcessingFieldParameterDataType::Any, true, true )
+  );
 
-  mAllSummaries << QObject::tr( "count" )
-                << QObject::tr( "unique" )
-                << QObject::tr( "min" )
-                << QObject::tr( "max" )
-                << QObject::tr( "range" )
-                << QObject::tr( "sum" )
-                << QObject::tr( "mean" )
-                << QObject::tr( "median" )
-                << QObject::tr( "stddev" )
-                << QObject::tr( "minority" )
-                << QObject::tr( "majority" )
-                << QObject::tr( "q1" )
-                << QObject::tr( "q3" )
-                << QObject::tr( "iqr" )
-                << QObject::tr( "empty" )
-                << QObject::tr( "filled" )
-                << QObject::tr( "min_length" )
-                << QObject::tr( "max_length" )
-                << QObject::tr( "mean_length" );
+  mAllSummaries
+    << QObject::tr( "count" )
+    << QObject::tr( "unique" )
+    << QObject::tr( "min" )
+    << QObject::tr( "max" )
+    << QObject::tr( "range" )
+    << QObject::tr( "sum" )
+    << QObject::tr( "mean" )
+    << QObject::tr( "median" )
+    << QObject::tr( "stddev" )
+    << QObject::tr( "minority" )
+    << QObject::tr( "majority" )
+    << QObject::tr( "q1" )
+    << QObject::tr( "q3" )
+    << QObject::tr( "iqr" )
+    << QObject::tr( "empty" )
+    << QObject::tr( "filled" )
+    << QObject::tr( "min_length" )
+    << QObject::tr( "max_length" )
+    << QObject::tr( "mean_length" );
 
   auto summaryParam = std::make_unique<QgsProcessingParameterEnum>( u"SUMMARIES"_s, QObject::tr( "Summaries to calculate (leave empty to use all available)" ), mAllSummaries, true, QVariant(), true );
   addParameter( summaryParam.release() );
@@ -90,9 +92,11 @@ QString QgsJoinByLocationSummaryAlgorithm::displayName() const
 
 QStringList QgsJoinByLocationSummaryAlgorithm::tags() const
 {
-  return QObject::tr( "summary,aggregate,join,intersects,intersecting,touching,within,contains,overlaps,relation,spatial,"
-                      "stats,statistics,sum,maximum,minimum,mean,average,standard,deviation,"
-                      "count,distinct,unique,variance,median,quartile,range,majority,minority,histogram,distinct" )
+  return QObject::tr(
+           "summary,aggregate,join,intersects,intersecting,touching,within,contains,overlaps,relation,spatial,"
+           "stats,statistics,sum,maximum,minimum,mean,average,standard,deviation,"
+           "count,distinct,unique,variance,median,quartile,range,majority,minority,histogram,distinct"
+  )
     .split( ',' );
 }
 
@@ -108,9 +112,12 @@ QString QgsJoinByLocationSummaryAlgorithm::groupId() const
 
 QString QgsJoinByLocationSummaryAlgorithm::shortHelpString() const
 {
-  return QObject::tr( "This algorithm takes an input vector layer and creates a new vector layer that is an extended version of the input one, with additional attributes in its attribute table.\n\n"
-                      "The additional attributes and their values are taken from a second vector layer. A spatial criteria is applied to select the values from the second layer that are added to each feature from the first layer in the resulting one.\n\n"
-                      "The algorithm calculates a statistical summary for the values from matching features in the second layer( e.g. maximum value, mean value, etc )." );
+  return QObject::tr(
+    "This algorithm takes an input vector layer and creates a new vector layer that is an extended version of the input one, with additional attributes in its attribute table.\n\n"
+    "The additional attributes and their values are taken from a second vector layer. A spatial criteria is applied to select the values from the second layer that are added to each feature from the "
+    "first layer in the resulting one.\n\n"
+    "The algorithm calculates a statistical summary for the values from matching features in the second layer( e.g. maximum value, mean value, etc )."
+  );
 }
 
 QString QgsJoinByLocationSummaryAlgorithm::shortDescription() const
@@ -245,6 +252,8 @@ QVariantMap QgsJoinByLocationSummaryAlgorithm::processAlgorithm( const QVariantM
     FieldStatistic( 18, u"mean_length"_s, QMetaType::Type::Double ),
   };
 
+  QgsAttributes nonMatchingJoinAttributes;
+
   for ( const QString &field : std::as_const( joinedFieldNames ) )
   {
     const int fieldIndex = joinSource->fields().lookupField( field );
@@ -259,9 +268,7 @@ QVariantMap QgsJoinByLocationSummaryAlgorithm::processAlgorithm( const QVariantM
         fieldTypes.append( FieldType::Numeric );
         statisticList = sNumericStats;
       }
-      else if ( joinField.type() == QMetaType::Type::QDate
-                || joinField.type() == QMetaType::Type::QTime
-                || joinField.type() == QMetaType::Type::QDateTime )
+      else if ( joinField.type() == QMetaType::Type::QDate || joinField.type() == QMetaType::Type::QTime || joinField.type() == QMetaType::Type::QDateTime )
       {
         fieldTypes.append( FieldType::DateTime );
         statisticList = sDateTimeStats;
@@ -280,6 +287,17 @@ QVariantMap QgsJoinByLocationSummaryAlgorithm::processAlgorithm( const QVariantM
             addFieldWithType( joinField, statistic.name, statistic.type );
           else
             addFieldKeepType( joinField, statistic.name );
+
+          // count, unique, empty and filled values should be 0
+          // see https://github.com/qgis/QGIS/issues/40108
+          if ( statistic.enumIndex == 0 || statistic.enumIndex == 1 || statistic.enumIndex == 14 || statistic.enumIndex == 15 )
+          {
+            nonMatchingJoinAttributes.append( QVariant( 0 ) );
+          }
+          else
+          {
+            nonMatchingJoinAttributes.append( QVariant() );
+          }
         }
       }
     }
@@ -299,7 +317,7 @@ QVariantMap QgsJoinByLocationSummaryAlgorithm::processAlgorithm( const QVariantM
 
   QgsFeatureIterator sourceIter = baseSource->getFeatures();
   QgsFeature f;
-  const double step = baseSource->featureCount() > 0 ? 100.0 / baseSource->featureCount() : 1;
+  const double step = baseSource->featureCount() > 0 ? 100.0 / static_cast<double>( baseSource->featureCount() ) : 1;
   long long i = 0;
   while ( sourceIter.nextFeature( f ) )
   {
@@ -313,9 +331,13 @@ QVariantMap QgsJoinByLocationSummaryAlgorithm::processAlgorithm( const QVariantM
         // ensure consistent count of attributes - otherwise non matching
         // features will have incorrect attribute length
         // and provider may reject them
-        f.resizeAttributes( outputFields.size() );
+        QgsAttributes outputAttributes = f.attributes();
+        outputAttributes.append( nonMatchingJoinAttributes );
+        f.setAttributes( outputAttributes );
         if ( !sink->addFeature( f, QgsFeatureSink::FastInsert ) )
           throw QgsProcessingException( writeFeatureError( sink.get(), parameters, u"OUTPUT"_s ) );
+        else
+          feedback->featureAddedToSink( destId );
       }
       continue;
     }
@@ -354,7 +376,7 @@ QVariantMap QgsJoinByLocationSummaryAlgorithm::processAlgorithm( const QVariantM
     }
 
     i++;
-    feedback->setProgress( i * step );
+    feedback->setProgress( static_cast<double>( i ) * step );
 
     if ( feedback->isCanceled() )
       break;
@@ -370,9 +392,13 @@ QVariantMap QgsJoinByLocationSummaryAlgorithm::processAlgorithm( const QVariantM
         // ensure consistent count of attributes - otherwise non matching
         // features will have incorrect attribute length
         // and provider may reject them
-        f.resizeAttributes( outputFields.size() );
+        QgsAttributes outputAttributes = f.attributes();
+        outputAttributes.append( nonMatchingJoinAttributes );
+        f.setAttributes( outputAttributes );
         if ( !sink->addFeature( f, QgsFeatureSink::FastInsert ) )
           throw QgsProcessingException( writeFeatureError( sink.get(), parameters, u"OUTPUT"_s ) );
+        else
+          feedback->featureAddedToSink( destId );
       }
     }
     else
@@ -552,10 +578,13 @@ QVariantMap QgsJoinByLocationSummaryAlgorithm::processAlgorithm( const QVariantM
       f.setAttributes( outputAttributes );
       if ( !sink->addFeature( f, QgsFeatureSink::FastInsert ) )
         throw QgsProcessingException( writeFeatureError( sink.get(), parameters, u"OUTPUT"_s ) );
+      else
+        feedback->featureAddedToSink( u"OUTPUT"_s );
     }
   }
 
   sink->finalize();
+  feedback->featureSinkFinalized( u"OUTPUT"_s );
   sink.reset();
 
   QVariantMap results;

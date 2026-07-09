@@ -69,7 +69,8 @@ void QgsLayoutToImageAlgorithm::initAlgorithm( const QVariantMap & )
 {
   addParameter( new QgsProcessingParameterLayout( u"LAYOUT"_s, QObject::tr( "Print layout" ) ) );
 
-  auto layersParam = std::make_unique<QgsProcessingParameterMultipleLayers>( u"LAYERS"_s, QObject::tr( "Map layers to assign to unlocked map item(s)" ), Qgis::ProcessingSourceType::MapLayer, QVariant(), true );
+  auto layersParam
+    = std::make_unique<QgsProcessingParameterMultipleLayers>( u"LAYERS"_s, QObject::tr( "Map layers to assign to unlocked map item(s)" ), Qgis::ProcessingSourceType::MapLayer, QVariant(), true );
   layersParam->setFlags( layersParam->flags() | Qgis::ProcessingParameterFlag::Advanced );
   addParameter( layersParam.release() );
 
@@ -89,23 +90,7 @@ void QgsLayoutToImageAlgorithm::initAlgorithm( const QVariantMap & )
   antialias->setFlags( antialias->flags() | Qgis::ProcessingParameterFlag::Advanced );
   addParameter( antialias.release() );
 
-  QStringList imageFilters;
-  const auto supportedImageFormats { QImageWriter::supportedImageFormats() };
-  for ( const QByteArray &format : supportedImageFormats )
-  {
-    if ( format == "svg" )
-      continue;
-
-    const QString longName = format.toUpper() + QObject::tr( " format" );
-    const QString glob = u"*."_s + format;
-
-    if ( format == "png" && !imageFilters.empty() )
-      imageFilters.insert( 0, u"%1 (%2 %3)"_s.arg( longName, glob.toLower(), glob.toUpper() ) );
-    else
-      imageFilters.append( u"%1 (%2 %3)"_s.arg( longName, glob.toLower(), glob.toUpper() ) );
-  }
-
-  addParameter( new QgsProcessingParameterFileDestination( u"OUTPUT"_s, QObject::tr( "Image file" ), imageFilters.join( ";;"_L1 ) ) );
+  addParameter( new QgsProcessingParameterFileDestination( u"OUTPUT"_s, QObject::tr( "Image file" ), QgsProcessingUtils::supportedImageFileFilters() ) );
 }
 
 Qgis::ProcessingAlgorithmFlags QgsLayoutToImageAlgorithm::flags() const
@@ -169,12 +154,19 @@ QVariantMap QgsLayoutToImageAlgorithm::processAlgorithm( const QVariantMap &para
     }
 
     case QgsLayoutExporter::FileError:
-      throw QgsProcessingException( !exporter.errorMessage().isEmpty() ? exporter.errorMessage() : QObject::tr( "Cannot write to %1.\n\nThis file may be open in another application." ).arg( QDir::toNativeSeparators( dest ) ) );
+      throw QgsProcessingException(
+        !exporter.errorMessage().isEmpty() ? exporter.errorMessage() : QObject::tr( "Cannot write to %1.\n\nThis file may be open in another application." ).arg( QDir::toNativeSeparators( dest ) )
+      );
 
     case QgsLayoutExporter::MemoryError:
-      throw QgsProcessingException( !exporter.errorMessage().isEmpty() ? exporter.errorMessage() : QObject::tr( "Trying to create the image "
-                                                                                                                "resulted in a memory overflow.\n\n"
-                                                                                                                "Please try a lower resolution or a smaller paper size." ) );
+      throw QgsProcessingException(
+        !exporter.errorMessage().isEmpty() ? exporter.errorMessage()
+                                           : QObject::tr(
+                                               "Trying to create the image "
+                                               "resulted in a memory overflow.\n\n"
+                                               "Please try a lower resolution or a smaller paper size."
+                                             )
+      );
 
     case QgsLayoutExporter::SvgLayerError:
     case QgsLayoutExporter::IteratorError:

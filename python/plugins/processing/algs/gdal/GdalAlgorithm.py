@@ -34,7 +34,7 @@ from qgis.core import (
 )
 from qgis.PyQt.QtCore import QCoreApplication
 
-from processing.algs.gdal.GdalAlgorithmDialog import GdalAlgorithmDialog
+from processing.algs.gdal.gdal_algorithm_widget import GdalAlgorithmWidget
 from processing.algs.gdal.GdalUtils import GdalConnectionDetails, GdalUtils
 
 pluginPath = os.path.normpath(
@@ -60,7 +60,7 @@ class GdalAlgorithm(QgsProcessingAlgorithm):
         return self.__class__()
 
     def createCustomParametersWidget(self, parent):
-        return GdalAlgorithmDialog(self, parent=parent)
+        return GdalAlgorithmWidget(self, parent=parent)
 
     def getConsoleCommands(self, parameters, context, feedback, executing=True):
         return None
@@ -212,10 +212,4 @@ class GdalAlgorithm(QgsProcessingAlgorithm):
         return QCoreApplication.translate(context, string)
 
     def outputFormat(self, parameters, parameterName, context):
-        output_format = self.parameterAsOutputFormat(parameters, parameterName, context)
-        if not output_format:
-            out = self.parameterAsOutputLayer(parameters, parameterName, context)
-            output_format = QgsRasterFileWriter.driverForExtension(
-                os.path.splitext(out)[1]
-            )
-        return output_format
+        return self.parameterAsOutputRasterFormat(parameters, parameterName, context)

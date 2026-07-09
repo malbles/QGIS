@@ -71,11 +71,6 @@ void TestQgsMapToolDeleteRing::initTestCase()
   QgsApplication::init();
   QgsApplication::initQgis();
 
-  // Set up the QSettings environment
-  QCoreApplication::setOrganizationName( u"QGIS"_s );
-  QCoreApplication::setOrganizationDomain( u"qgis.org"_s );
-  QCoreApplication::setApplicationName( u"QGIS-TEST"_s );
-
   mQgisApp = new QgisApp();
 
   mCanvas = new QgsMapCanvas();
@@ -132,19 +127,9 @@ void TestQgsMapToolDeleteRing::cleanup()
 
 void TestQgsMapToolDeleteRing::click( double x, double y )
 {
-  std::unique_ptr<QgsMapMouseEvent> event( new QgsMapMouseEvent(
-    mCanvas,
-    QEvent::MouseButtonPress,
-    mapToPoint( x, y ),
-    Qt::LeftButton
-  ) );
+  auto event = std::make_unique<QgsMapMouseEvent>( mCanvas, QEvent::MouseButtonPress, mapToPoint( x, y ), Qt::LeftButton );
   mCaptureTool->canvasPressEvent( event.get() );
-  event = std::make_unique<QgsMapMouseEvent>(
-    mCanvas,
-    QEvent::MouseButtonRelease,
-    mapToPoint( x, y ),
-    Qt::LeftButton
-  );
+  event = std::make_unique<QgsMapMouseEvent>( mCanvas, QEvent::MouseButtonRelease, mapToPoint( x, y ), Qt::LeftButton );
   mCaptureTool->canvasReleaseEvent( event.get() );
 }
 

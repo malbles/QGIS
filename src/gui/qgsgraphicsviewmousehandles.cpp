@@ -76,6 +76,17 @@ void QgsGraphicsViewMouseHandles::setCadMouseDigitizingModeEnabled( bool enable 
   mCadMouseDigitizingMode = enable;
 }
 
+void QgsGraphicsViewMouseHandles::setResizeEnabled( bool enable )
+{
+  if ( mResizeEnabled == enable )
+  {
+    return;
+  }
+
+  mResizeEnabled = enable;
+  update();
+}
+
 void QgsGraphicsViewMouseHandles::paintInternal( QPainter *painter, bool showHandles, bool showStaticBoundingBoxes, bool showTemporaryBoundingBoxes, const QStyleOptionGraphicsItem *, QWidget * )
 {
   if ( !showHandles )
@@ -108,7 +119,11 @@ void QgsGraphicsViewMouseHandles::rotateItem( QGraphicsItem *, double, double, d
 }
 
 void QgsGraphicsViewMouseHandles::previewItemMove( QGraphicsItem *, double, double )
+{}
+
+void QgsGraphicsViewMouseHandles::setItemRect( QGraphicsItem *, QRectF )
 {
+  QgsDebugError( u"Resize is not implemented for this class"_s );
 }
 
 QRectF QgsGraphicsViewMouseHandles::previewSetItemRect( QGraphicsItem *, QRectF )
@@ -117,20 +132,16 @@ QRectF QgsGraphicsViewMouseHandles::previewSetItemRect( QGraphicsItem *, QRectF 
 }
 
 void QgsGraphicsViewMouseHandles::startMacroCommand( const QString & )
-{
-}
+{}
 
 void QgsGraphicsViewMouseHandles::endMacroCommand()
-{
-}
+{}
 
 void QgsGraphicsViewMouseHandles::endItemCommand( QGraphicsItem * )
-{
-}
+{}
 
 void QgsGraphicsViewMouseHandles::createItemCommand( QGraphicsItem * )
-{
-}
+{}
 
 QPointF QgsGraphicsViewMouseHandles::snapPoint( QPointF originalPoint, QgsGraphicsViewMouseHandles::SnapGuideMode, bool, bool )
 {
@@ -153,24 +164,27 @@ void QgsGraphicsViewMouseHandles::drawHandles( QPainter *painter, double rectHan
   painter->setBrush( Qt::NoBrush );
   painter->drawRect( QRectF( 0, 0, rect().width(), rect().height() ) );
 
-  //draw resize handles, using filled white boxes
-  painter->setBrush( QColor( 255, 255, 255, 255 ) );
-  //top left
-  painter->drawRect( QRectF( 0, 0, rectHandlerSize, rectHandlerSize ) );
-  //mid top
-  painter->drawRect( QRectF( ( rect().width() - rectHandlerSize ) / 2, 0, rectHandlerSize, rectHandlerSize ) );
-  //top right
-  painter->drawRect( QRectF( rect().width() - rectHandlerSize, 0, rectHandlerSize, rectHandlerSize ) );
-  //mid left
-  painter->drawRect( QRectF( 0, ( rect().height() - rectHandlerSize ) / 2, rectHandlerSize, rectHandlerSize ) );
-  //mid right
-  painter->drawRect( QRectF( rect().width() - rectHandlerSize, ( rect().height() - rectHandlerSize ) / 2, rectHandlerSize, rectHandlerSize ) );
-  //bottom left
-  painter->drawRect( QRectF( 0, rect().height() - rectHandlerSize, rectHandlerSize, rectHandlerSize ) );
-  //mid bottom
-  painter->drawRect( QRectF( ( rect().width() - rectHandlerSize ) / 2, rect().height() - rectHandlerSize, rectHandlerSize, rectHandlerSize ) );
-  //bottom right
-  painter->drawRect( QRectF( rect().width() - rectHandlerSize, rect().height() - rectHandlerSize, rectHandlerSize, rectHandlerSize ) );
+  if ( isResizeEnabled() )
+  {
+    //draw resize handles, using filled white boxes
+    painter->setBrush( QColor( 255, 255, 255, 255 ) );
+    //top left
+    painter->drawRect( QRectF( 0, 0, rectHandlerSize, rectHandlerSize ) );
+    //mid top
+    painter->drawRect( QRectF( ( rect().width() - rectHandlerSize ) / 2, 0, rectHandlerSize, rectHandlerSize ) );
+    //top right
+    painter->drawRect( QRectF( rect().width() - rectHandlerSize, 0, rectHandlerSize, rectHandlerSize ) );
+    //mid left
+    painter->drawRect( QRectF( 0, ( rect().height() - rectHandlerSize ) / 2, rectHandlerSize, rectHandlerSize ) );
+    //mid right
+    painter->drawRect( QRectF( rect().width() - rectHandlerSize, ( rect().height() - rectHandlerSize ) / 2, rectHandlerSize, rectHandlerSize ) );
+    //bottom left
+    painter->drawRect( QRectF( 0, rect().height() - rectHandlerSize, rectHandlerSize, rectHandlerSize ) );
+    //mid bottom
+    painter->drawRect( QRectF( ( rect().width() - rectHandlerSize ) / 2, rect().height() - rectHandlerSize, rectHandlerSize, rectHandlerSize ) );
+    //bottom right
+    painter->drawRect( QRectF( rect().width() - rectHandlerSize, rect().height() - rectHandlerSize, rectHandlerSize, rectHandlerSize ) );
+  }
 
   if ( isRotationEnabled() )
   {
@@ -463,7 +477,7 @@ Qgis::MouseHandlesAction QgsGraphicsViewMouseHandles::mouseActionForPosition( QP
   double borderTolerance = rectHandlerBorderTolerance();
   double innerTolerance = mRotationHandleSize * borderTolerance / mHandleSize;
 
-  if ( itemCoordPos.x() >= 0 && itemCoordPos.x() < borderTolerance )
+  if ( isResizeEnabled() && itemCoordPos.x() >= 0 && itemCoordPos.x() < borderTolerance )
   {
     nearLeftBorder = true;
   }
@@ -471,7 +485,7 @@ Qgis::MouseHandlesAction QgsGraphicsViewMouseHandles::mouseActionForPosition( QP
   {
     nearLeftInner = true;
   }
-  if ( itemCoordPos.y() >= 0 && itemCoordPos.y() < borderTolerance )
+  if ( isResizeEnabled() && itemCoordPos.y() >= 0 && itemCoordPos.y() < borderTolerance )
   {
     nearUpperBorder = true;
   }
@@ -479,7 +493,7 @@ Qgis::MouseHandlesAction QgsGraphicsViewMouseHandles::mouseActionForPosition( QP
   {
     nearUpperInner = true;
   }
-  if ( itemCoordPos.x() <= rect().width() && itemCoordPos.x() > ( rect().width() - borderTolerance ) )
+  if ( isResizeEnabled() && itemCoordPos.x() <= rect().width() && itemCoordPos.x() > ( rect().width() - borderTolerance ) )
   {
     nearRightBorder = true;
   }
@@ -487,7 +501,7 @@ Qgis::MouseHandlesAction QgsGraphicsViewMouseHandles::mouseActionForPosition( QP
   {
     nearRightInner = true;
   }
-  if ( itemCoordPos.y() <= rect().height() && itemCoordPos.y() > ( rect().height() - borderTolerance ) )
+  if ( isResizeEnabled() && itemCoordPos.y() <= rect().height() && itemCoordPos.y() > ( rect().height() - borderTolerance ) )
   {
     nearLowerBorder = true;
   }
@@ -1065,9 +1079,19 @@ void QgsGraphicsViewMouseHandles::resizeMouseMove( QPointF currentPosition, bool
   {
     //snapping only occurs if handles are not rotated for now
 
-    bool snapVertical = mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeLeft || mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeRight || mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeLeftUp || mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeRightUp || mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeLeftDown || mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeRightDown;
+    bool snapVertical = mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeLeft
+                        || mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeRight
+                        || mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeLeftUp
+                        || mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeRightUp
+                        || mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeLeftDown
+                        || mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeRightDown;
 
-    bool snapHorizontal = mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeUp || mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeDown || mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeLeftUp || mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeRightUp || mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeLeftDown || mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeRightDown;
+    bool snapHorizontal = mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeUp
+                          || mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeDown
+                          || mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeLeftUp
+                          || mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeRightUp
+                          || mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeLeftDown
+                          || mCurrentMouseMoveAction == Qgis::MouseHandlesAction::ResizeRightDown;
 
     //subtract cursor edge offset from begin mouse event and current cursor position, so that snapping occurs to edge of mouse handles
     //rather then cursor position

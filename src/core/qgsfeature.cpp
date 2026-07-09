@@ -80,7 +80,7 @@ bool QgsFeature::operator==( const QgsFeature &other ) const
     return true;
   else if ( d->geometry.isNull() || other.d->geometry.isNull() )
     return false;
-  else if ( !d->geometry.equals( other.d->geometry ) )
+  else if ( !d->geometry.isExactlyEqual( other.d->geometry ) )
     return false;
 
   return true;
@@ -444,9 +444,9 @@ QDataStream &operator>>( QDataStream &in, QgsFeature &feature )
   return in;
 }
 
-uint qHash( const QgsFeature &key, uint seed )
+size_t qHash( const QgsFeature &key, size_t seed )
 {
-  uint hash = seed;
+  size_t hash = seed;
   const auto constAttributes = key.attributes();
   for ( const QVariant &attr : constAttributes )
   {

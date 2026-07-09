@@ -70,17 +70,19 @@ QString QgsCoverageSimplifyAlgorithm::shortDescription() const
 
 QString QgsCoverageSimplifyAlgorithm::shortHelpString() const
 {
-  return QObject::tr( "This algorithm operates on a coverage (represented as a set of polygon features "
-                      "with exactly matching edge geometry) to apply a Visvalingam–Whyatt "
-                      "simplification to the edges, reducing complexity in proportion with "
-                      "the provided tolerance, while retaining a valid coverage (i.e. no edges "
-                      "will cross or touch after the simplification).\n\n"
-                      "Geometries will never be removed, but they may be simplified down to just "
-                      "a triangle. Also, some geometries (such as polygons which have too "
-                      "few non-repeated points) will be returned unchanged.\n\n"
-                      "If the input dataset is not a valid coverage due to overlaps, "
-                      "it will still be simplified, but invalid topology such as crossing "
-                      "edges will still be invalid." );
+  return QObject::tr(
+    "This algorithm operates on a coverage (represented as a set of polygon features "
+    "with exactly matching edge geometry) to apply a Visvalingam–Whyatt "
+    "simplification to the edges, reducing complexity in proportion with "
+    "the provided tolerance, while retaining a valid coverage (i.e. no edges "
+    "will cross or touch after the simplification).\n\n"
+    "Geometries will never be removed, but they may be simplified down to just "
+    "a triangle. Also, some geometries (such as polygons which have too "
+    "few non-repeated points) will be returned unchanged.\n\n"
+    "If the input dataset is not a valid coverage due to overlaps, "
+    "it will still be simplified, but invalid topology such as crossing "
+    "edges will still be invalid."
+  );
 }
 
 QgsCoverageSimplifyAlgorithm *QgsCoverageSimplifyAlgorithm::createInstance() const
@@ -191,7 +193,8 @@ QVariantMap QgsCoverageSimplifyAlgorithm::processAlgorithm( const QVariantMap &p
     outFeature.setGeometry( QgsGeometry( *partsIt ? ( *partsIt )->clone() : nullptr ) );
     if ( !sink->addFeature( outFeature, QgsFeatureSink::FastInsert ) )
       throw QgsProcessingException( writeFeatureError( sink.get(), parameters, u"OUTPUT"_s ) );
-
+    else
+      feedback->featureAddedToSink( u"OUTPUT"_s );
 
     feedback->setProgress( featureIndex * step * 0.2 + 80 );
     featureIndex++;
@@ -201,9 +204,12 @@ QVariantMap QgsCoverageSimplifyAlgorithm::processAlgorithm( const QVariantMap &p
     QgsFeature outFeature = feature;
     if ( !sink->addFeature( outFeature, QgsFeatureSink::FastInsert ) )
       throw QgsProcessingException( writeFeatureError( sink.get(), parameters, u"OUTPUT"_s ) );
+    else
+      feedback->featureAddedToSink( u"OUTPUT"_s );
   }
 
   sink->finalize();
+  feedback->featureSinkFinalized( u"OUTPUT"_s );
 
   QVariantMap outputs;
   outputs.insert( u"OUTPUT"_s, sinkId );

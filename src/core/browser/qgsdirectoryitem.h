@@ -29,6 +29,11 @@ using namespace Qt::StringLiterals;
 
 class QFileSystemWatcher;
 class QMouseEvent;
+class QgsSettingsEntryBool;
+class QgsSettingsEntryInteger;
+class QgsSettingsEntryString;
+class QgsSettingsEntryStringList;
+class QgsSettingsEntryVariant;
 
 /**
  * \ingroup core
@@ -168,6 +173,21 @@ class CORE_EXPORT QgsDirectoryItem : public QgsDataCollectionItem
      */
     static bool pathShouldByMonitoredByDefault( const QString &path );
 
+#ifndef SIP_RUN
+
+    static const QgsSettingsEntryBool *settingsMonitorDirectoriesInBrowser;
+
+    static const QgsSettingsEntryStringList *settingsHiddenPaths SIP_SKIP;
+
+    static const QgsSettingsEntryStringList *settingsDisableMonitorItemUris SIP_SKIP;
+
+    static const QgsSettingsEntryStringList *settingsAlwaysMonitorItemUris SIP_SKIP;
+
+    static const QgsSettingsEntryInteger *settingsMinScanInterval SIP_SKIP;
+
+    static const QgsSettingsEntryString *settingsCustomPathColor SIP_SKIP;
+#endif
+
     /**
      * Returns TRUE if the directory is currently being monitored for changes and the item auto-refreshed
      * when these occur.
@@ -243,6 +263,8 @@ class CORE_EXPORT QgsDirectoryParamWidget : public QTreeWidget
     Q_OBJECT
 
   public:
+    static const QgsSettingsEntryVariant *settingsDirectoryHiddenColumns SIP_SKIP;
+
     QgsDirectoryParamWidget( const QString &path, QWidget *parent SIP_TRANSFERTHIS = nullptr );
 
   protected:

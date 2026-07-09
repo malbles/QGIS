@@ -20,7 +20,7 @@
 #include "qgsmessagelog.h"
 #include "qgsnetworkaccessmanager.h"
 #include "qgsrasterblock.h"
-#include "qgssettings.h"
+#include "qgssettingsentryimpl.h"
 
 #include <QString>
 
@@ -669,9 +669,8 @@ void QgsGdalUtils::setupProxy()
   // given the limited cost of checking them on every provider instantiation
   // we can do it here so that new settings are applied whenever a new layer
   // is created.
-  const QgsSettings settings;
   // Check that proxy is enabled
-  if ( settings.value( u"proxy/proxyEnabled"_s, false ).toBool() )
+  if ( QgsNetworkAccessManager::settingsProxyEnabled->value() )
   {
     // Get the first configured proxy
     QList<QNetworkProxy> proxies( QgsNetworkAccessManager::instance()->proxyFactory()->queryProxy() );
@@ -679,8 +678,6 @@ void QgsGdalUtils::setupProxy()
     {
       const QNetworkProxy proxy( proxies.first() );
       // TODO/FIXME: check excludes (the GDAL config options are global, we need a per-connection config option)
-      //QStringList excludes;
-      //excludes = settings.value( u"proxy/proxyExcludedUrls"_s, "" ).toStringList();
 
       const QString proxyHost( proxy.hostName() );
       const quint16 proxyPort( proxy.port() );
@@ -1015,6 +1012,34 @@ QString QgsGdalUtils::gdalDocumentationUrlForDriver( GDALDriverH hDriver )
       return u"https://gdal.org/%1"_s.arg( gdalDriverHelpTopic );
   }
   return QString();
+}
+
+bool QgsGdalUtils::supportsMrfLercCompression()
+{
+  GDALDriverH hDriver = GDALGetDriverByName( "MRF" );
+  if ( hDriver )
+  {
+    const char *creationOptions = GDALGetMetadataItem( hDriver, GDAL_DMD_CREATIONOPTIONLIST, NULL );
+    if ( creationOptions && strstr( creationOptions, "LERC" ) )
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool QgsGdalUtils::supportsTiffLercCompression()
+{
+  GDALDriverH hDriver = GDALGetDriverByName( "GTiff" );
+  if ( hDriver )
+  {
+    const char *creationOptions = GDALGetMetadataItem( hDriver, GDAL_DMD_CREATIONOPTIONLIST, NULL );
+    if ( creationOptions && strstr( creationOptions, "LERC" ) )
+    {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool QgsGdalUtils::applyVsiCredentialOptions( const QString &prefix, const QString &path, const QVariantMap &options )

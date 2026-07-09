@@ -52,7 +52,9 @@ void QgsRasterMinMaxAlgorithm::initAlgorithm( const QVariantMap & )
 {
   addParameter( new QgsProcessingParameterRasterLayer( u"INPUT"_s, QObject::tr( "Input layer" ) ) );
   addParameter( new QgsProcessingParameterBand( u"BAND"_s, QObject::tr( "Band number" ), 1, u"INPUT"_s ) );
-  addParameter( new QgsProcessingParameterEnum( u"EXTRACT"_s, QObject::tr( "Extract extrema" ), QStringList() << QObject::tr( "Minimum and Maximum" ) << QObject::tr( "Minimum" ) << QObject::tr( "Maximum" ), false, 0 ) );
+  addParameter(
+    new QgsProcessingParameterEnum( u"EXTRACT"_s, QObject::tr( "Extract extrema" ), QStringList() << QObject::tr( "Minimum and Maximum" ) << QObject::tr( "Minimum" ) << QObject::tr( "Maximum" ), false, 0 )
+  );
 
   addParameter( new QgsProcessingParameterFeatureSink( u"OUTPUT"_s, QObject::tr( "Output" ), Qgis::ProcessingSourceType::VectorPoint, QVariant(), true, true ) );
 
@@ -62,9 +64,11 @@ void QgsRasterMinMaxAlgorithm::initAlgorithm( const QVariantMap & )
 
 QString QgsRasterMinMaxAlgorithm::shortHelpString() const
 {
-  return QObject::tr( "This algorithm extracts extrema (minimum and maximum) values from a given band of the raster layer.\n\n"
-                      "The output is a vector layer containing point features for the selected extrema, at the center of the associated pixel.\n\n"
-                      "If multiple pixels in the raster share the minimum or maximum value, then only one of these pixels will be included in the output." );
+  return QObject::tr(
+    "This algorithm extracts extrema (minimum and maximum) values from a given band of the raster layer.\n\n"
+    "The output is a vector layer containing point features for the selected extrema, at the center of the associated pixel.\n\n"
+    "If multiple pixels in the raster share the minimum or maximum value, then only one of these pixels will be included in the output."
+  );
 }
 
 QString QgsRasterMinMaxAlgorithm::shortDescription() const
@@ -206,6 +210,8 @@ QVariantMap QgsRasterMinMaxAlgorithm::processAlgorithm( const QVariantMap &param
       f.setGeometry( QgsGeometry::fromPointXY( rasterMinPoint ) );
       if ( !sink->addFeature( f, QgsFeatureSink::FastInsert ) )
         throw QgsProcessingException( writeFeatureError( sink.get(), parameters, u"OUTPUT"_s ) );
+      else
+        feedback->featureAddedToSink( u"OUTPUT"_s );
     }
     if ( !std::isnan( rasterMaximum ) )
     {
@@ -213,7 +219,11 @@ QVariantMap QgsRasterMinMaxAlgorithm::processAlgorithm( const QVariantMap &param
       f.setGeometry( QgsGeometry::fromPointXY( rasterMaxPoint ) );
       if ( !sink->addFeature( f, QgsFeatureSink::FastInsert ) )
         throw QgsProcessingException( writeFeatureError( sink.get(), parameters, u"OUTPUT"_s ) );
+      else
+        feedback->featureAddedToSink( u"OUTPUT"_s );
     }
+    sink->finalize();
+    feedback->featureSinkFinalized( u"OUTPUT"_s );
     outputs.insert( u"OUTPUT"_s, dest );
   }
   outputs.insert( u"MINIMUM"_s, !std::isnan( rasterMinimum ) ? QVariant::fromValue( rasterMinimum ) : QVariant() );

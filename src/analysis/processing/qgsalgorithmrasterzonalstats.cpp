@@ -81,10 +81,12 @@ QString QgsRasterLayerZonalStatsAlgorithm::shortDescription() const
 
 QString QgsRasterLayerZonalStatsAlgorithm::shortHelpString() const
 {
-  return QObject::tr( "This algorithm calculates statistics for a raster layer's values, categorized by zones defined in another raster layer.\n\n"
-                      "If the reference layer parameter is set to \"Input layer\", then zones are determined by sampling the zone raster layer value at the centroid of each pixel from the source raster layer.\n\n"
-                      "If the reference layer parameter is set to \"Zones layer\", then the input raster layer will be sampled at the centroid of each pixel from the zones raster layer.\n\n"
-                      "If either the source raster layer or the zone raster layer value is NoData for a pixel, that pixel's value will be skipped and not included in the calculated statistics." );
+  return QObject::tr(
+    "This algorithm calculates statistics for a raster layer's values, categorized by zones defined in another raster layer.\n\n"
+    "If the reference layer parameter is set to \"Input layer\", then zones are determined by sampling the zone raster layer value at the centroid of each pixel from the source raster layer.\n\n"
+    "If the reference layer parameter is set to \"Zones layer\", then the input raster layer will be sampled at the centroid of each pixel from the zones raster layer.\n\n"
+    "If either the source raster layer or the zone raster layer value is NoData for a pixel, that pixel's value will be skipped and not included in the calculated statistics."
+  );
 }
 
 QgsRasterLayerZonalStatsAlgorithm *QgsRasterLayerZonalStatsAlgorithm::createInstance() const
@@ -198,8 +200,7 @@ QVariantMap QgsRasterLayerZonalStatsAlgorithm::processAlgorithm( const QVariantM
 
   const qgssize layerSize = static_cast<qgssize>( mLayerWidth ) * static_cast<qgssize>( mLayerHeight );
 
-  QgsRasterIterator iter = mRefLayer == Source ? QgsRasterIterator( mSourceInterface )
-                                               : QgsRasterIterator( mZonesInterface );
+  QgsRasterIterator iter = mRefLayer == Source ? QgsRasterIterator( mSourceInterface ) : QgsRasterIterator( mZonesInterface );
   iter.startRasterRead( mRefLayer == Source ? mBand : mZonesBand, mLayerWidth, mLayerHeight, mExtent );
 
   int iterLeft = 0;
@@ -277,8 +278,13 @@ QVariantMap QgsRasterLayerZonalStatsAlgorithm::processAlgorithm( const QVariantM
     f.setAttributes( QgsAttributes() << it.key() << it->s.count() * pixelArea << it->s.sum() << it->s.count() << it->s.min() << it->s.max() << it->s.mean() );
     if ( !sink->addFeature( f, QgsFeatureSink::FastInsert ) )
       throw QgsProcessingException( writeFeatureError( sink.get(), parameters, u"OUTPUT_TABLE"_s ) );
-    sink->finalize();
+    else
+      feedback->featureAddedToSink( u"OUTPUT_TABLE"_s );
   }
+
+  sink->finalize();
+  feedback->featureSinkFinalized( u"OUTPUT_TABLE"_s );
+
   outputs.insert( u"OUTPUT_TABLE"_s, tableDest );
 
   return outputs;

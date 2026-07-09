@@ -13,7 +13,6 @@ Item {
 
   property bool narrowLayout: height < 350 || width < 480
 
-  visible: height >= 300 && width >= 360
   width: 1100
   height: 720
 
@@ -26,6 +25,10 @@ Item {
 
     Rectangle {
       id: mainCard
+
+      property bool tinyHeight: height < 175
+      property bool shortHeight: height < 350
+
       Layout.fillWidth: true
       Layout.fillHeight: true
       radius: 10
@@ -38,20 +41,22 @@ Item {
           left: parent.left
           right: parent.right
           bottom: footer.top
-          topMargin: 28
+          topMargin: mainCard.shortHeight ? 16 : 20
           leftMargin: 28
           rightMargin: 28
           bottomMargin: 8
         }
         columns: welcomeScreen.narrowLayout ? 1 : 2
         columnSpacing: 20
-        rowSpacing: 10
+        rowSpacing: welcomeScreen.narrowLayout ? 0 : 10
 
         Column {
           Layout.maximumWidth: welcomeScreen.narrowLayout ? parent.width : parent.width * 0.52
           Layout.fillWidth: true
+          Layout.preferredHeight: mainCard.shortHeight ? 0 : -1
           Layout.alignment: Qt.AlignTop
           spacing: 10
+          clip: true
 
           Image {
             source: "images/qgis.svg"
@@ -100,9 +105,11 @@ Item {
 
             TabBar {
               id: tabBar
+              width: parent.width
               background: Item {
                 anchors.fill: parent
               }
+              clip: true
 
               TabButton {
                 text: qsTr("Recent")
@@ -151,6 +158,7 @@ Item {
                 onClicked: (mouse) => {
                              if (mouse.button == Qt.LeftButton && isEnabled) {
                                welcomeScreenController.openProject(ProjectPath);
+                               welcomeScreenController.hideScene();
                              } else if (mouse.button == Qt.RightButton) {
                                recentProjectsMenu.projectIndex = index;
                                recentProjectsMenu.projectPinned = Pinned;
@@ -318,12 +326,15 @@ Item {
                     switch (Type) {
                     case TemplateProjectsModel.TemplateType.Blank:
                       welcomeScreenController.createBlankProject(); //#spellok
+                      welcomeScreenController.hideScene();
                       return;
                     case TemplateProjectsModel.TemplateType.Basemap:
                       welcomeScreenController.createProjectFromBasemap();
+                      welcomeScreenController.hideScene();
                       return;
                     default:
                       welcomeScreenController.createProjectFromTemplate(TemplateNativePath || ""); //#spellok
+                      welcomeScreenController.hideScene();
                       return;
                     }
                   } else if (mouse.button == Qt.RightButton) {
@@ -550,6 +561,7 @@ Item {
               description: Content
               imageSource: ImageUrl
               showCloseButton: true
+              showLink: Link != ""
 
               onReadMoreClicked: {
                 Qt.openUrlExternally(Link);
@@ -590,6 +602,7 @@ Item {
           bottom: parent.bottom
           bottomMargin: 0
         }
+        height: mainCard.tinyHeight ? 0 : implicitHeight
 
         onSupportClicked: {
           Qt.openUrlExternally("https://www.qgis.org/funding/donate/")

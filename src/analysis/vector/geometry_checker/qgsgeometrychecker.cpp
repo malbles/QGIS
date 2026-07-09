@@ -31,9 +31,9 @@
 
 #include "moc_qgsgeometrychecker.cpp"
 
-QgsGeometryChecker::QgsGeometryChecker( const QList<QgsGeometryCheck *> &checks, QgsGeometryCheckContext *context, const QMap<QString, QgsFeaturePool *> &featurePools )
+QgsGeometryChecker::QgsGeometryChecker( const QList<QgsGeometryCheck *> &checks, std::unique_ptr<QgsGeometryCheckContext> context, const QMap<QString, QgsFeaturePool *> &featurePools )
   : mChecks( checks )
-  , mContext( context )
+  , mContext( std::move( context ) )
   , mFeaturePools( featurePools )
 {
   for ( auto it = featurePools.constBegin(); it != mFeaturePools.constEnd(); ++it )
@@ -60,7 +60,6 @@ QgsGeometryChecker::~QgsGeometryChecker()
     }
     delete it.value();
   }
-  delete mContext;
 }
 
 QFuture<void> QgsGeometryChecker::execute( int *totalSteps )
@@ -248,11 +247,14 @@ bool QgsGeometryChecker::fixError( QgsGeometryCheckError *error, int method, boo
     }
 
     // If no match is found and the error is not fixed or obsolete, set it to obsolete if...
-    if ( err->status() < QgsGeometryCheckError::StatusFixed && (
+    if ( err->status() < QgsGeometryCheckError::StatusFixed
+         && (
            // changes weren't handled
-           !handled ||
+           !handled
+           ||
            // or if it is a FeatureNodeCheck or FeatureCheck error whose feature was rechecked
-           ( err->check()->checkType() <= QgsGeometryCheck::FeatureCheck && recheckFeatures[err->layerId()].contains( err->featureId() ) ) ||
+           ( err->check()->checkType() <= QgsGeometryCheck::FeatureCheck && recheckFeatures[err->layerId()].contains( err->featureId() ) )
+           ||
            // or if it is a LayerCheck error within the rechecked area
            ( err->check()->checkType() == QgsGeometryCheck::LayerCheck && recheckArea.contains( err->affectedAreaBBox() ) )
          ) )
@@ -298,8 +300,7 @@ void QgsGeometryChecker::runCheck( const QMap<QString, QgsFeaturePool *> &featur
 
 QgsGeometryChecker::RunCheckWrapper::RunCheckWrapper( QgsGeometryChecker *instance )
   : mInstance( instance )
-{
-}
+{}
 
 void QgsGeometryChecker::RunCheckWrapper::operator()( const QgsGeometryCheck *check )
 {

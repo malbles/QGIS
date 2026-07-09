@@ -28,29 +28,41 @@
 using namespace Qt::StringLiterals;
 
 QgsServerQueryStringParameter::QgsServerQueryStringParameter( const QString name, bool required, QgsServerQueryStringParameter::Type type, const QString &description, const QVariant &defaultValue )
-  : mName( name ), mRequired( required ), mType( type ), mDescription( description ), mDefaultValue( defaultValue )
-{
-}
+  : mName( name )
+  , mRequired( required )
+  , mType( type )
+  , mDescription( description )
+  , mDefaultValue( defaultValue )
+{}
 
 QgsServerQueryStringParameter::~QgsServerQueryStringParameter()
-{
-}
+{}
 
 QVariant QgsServerQueryStringParameter::value( const QgsServerApiContext &context ) const
 {
+  // Case insensitive check
+  const QUrlQuery urlQuery( context.request()->url() );
+  const QList<std::pair<QString, QString>> items = urlQuery.queryItems( QUrl::FullyDecoded );
+  QString nameInQueryString;
+  QVariant value;
+  for ( const auto &pair : std::as_const( items ) )
+  {
+    if ( pair.first.compare( mName, Qt::CaseInsensitive ) == 0 )
+    {
+      nameInQueryString = pair.first;
+      value = pair.second;
+      break;
+    }
+  }
+
   // 1: check required
-  if ( mRequired && !QUrlQuery( context.request()->url() ).hasQueryItem( mName ) )
+  if ( mRequired && nameInQueryString.isEmpty() )
   {
     throw QgsServerApiBadRequestException( u"Missing required argument: '%1'"_s.arg( mName ) );
   }
 
   // 2: get value from query string or set it to the default
-  QVariant value;
-  if ( QUrlQuery( context.request()->url() ).hasQueryItem( mName ) )
-  {
-    value = QUrlQuery( context.request()->url() ).queryItemValue( mName, QUrl::FullyDecoded );
-  }
-  else if ( mDefaultValue.isValid() )
+  if ( nameInQueryString.isEmpty() && mDefaultValue.isValid() )
   {
     value = mDefaultValue;
   }

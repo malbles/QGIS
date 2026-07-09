@@ -19,7 +19,8 @@
 
 #include "qgis.h"
 #include "qgsproject.h"
-#include "qgssettings.h"
+#include "qgssettingsentryimpl.h"
+#include "qgssettingsregistrycore.h"
 #include "qgsunittypes.h"
 
 #include <QString>
@@ -30,8 +31,7 @@ using namespace Qt::StringLiterals;
 
 QString QgsMeasureUtils::formatAreaForProject( QgsProject *project, double area, Qgis::AreaUnit unit )
 {
-  QgsSettings settings;
-  const bool keepBaseUnit = settings.value( u"qgis/measure/keepbaseunit"_s, true ).toBool();
+  const bool keepBaseUnit = QgsSettingsRegistryCore::settingsMeasureKeepBaseUnit->value();
 
   const Qgis::AreaUnit targetUnit = project->areaUnits();
   const double areaInTargetUnits = QgsUnitTypes::fromUnitToUnitFactor( unit, targetUnit ) * area;
@@ -63,8 +63,7 @@ QString QgsMeasureUtils::formatAreaForProject( QgsProject *project, double area,
 
 QString QgsMeasureUtils::formatDistanceForProject( QgsProject *project, double distance, Qgis::DistanceUnit unit )
 {
-  QgsSettings settings;
-  const bool keepBaseUnit = settings.value( u"qgis/measure/keepbaseunit"_s, true ).toBool();
+  const bool keepBaseUnit = QgsSettingsRegistryCore::settingsMeasureKeepBaseUnit->value();
 
   const Qgis::DistanceUnit targetUnit = project->distanceUnits();
   const double distanceInTargetUnits = QgsUnitTypes::fromUnitToUnitFactor( unit, targetUnit ) * distance;

@@ -2,13 +2,13 @@
   "vcpkg-configuration": {
     "default-registry": {
       "kind": "git",
-      "baseline": "5d57f5a0a5469a23e005fc79a7c1814ab4fc967e",
+      "baseline": "2b65c20fc66eda893aa15a15a453c3cf09500b19",
       "repository": "https://github.com/microsoft/vcpkg"
     },
     "registries": [
       {
         "kind": "git",
-        "baseline": "a3f181f299a54a0d67e6e60cac746ea265adfb29",
+        "baseline": "d42399a4a16f6091710bbeb3c207386544b469ba",
         "repository": "https://github.com/open-vcpkg/python-registry",
         "packages": [
           "arrow",
@@ -39,12 +39,19 @@
       "name": "gdal",
       "default-features": false,
       "features": [
-        "freexl"
+        "freexl",
+        "zstd"
       ]
     },
     "geos",
     "gsl",
     "jhasse-poly2tri",
+    {
+      "name": "libjpeg-turbo",
+      "features": [
+        "jpeg8"
+      ]
+    },
     "libspatialindex",
     {
       "name": "libtasn1",
@@ -66,6 +73,9 @@
           "name": "gles3",
           "platform": "emscripten"
         },
+        {
+          "name": "png"
+        },
         "concurrent",
         "freetype",
         "gui",
@@ -81,10 +91,27 @@
       "default-features": false,
       "host": true
     },
+    {
+      "name": "qtmultimedia",
+      "default-features": false,
+      "platform": "emscripten"
+    },
+    {
+      "name": "qtmultimedia",
+      "platform": "!emscripten"
+    },
     "qtsvg",
-    "qtmultimedia",
     "qt5compat",
     "qtkeychain-qt6",
+    {
+      "name": "tiff",
+      "features": [
+        "lerc",
+        "libdeflate",
+        "webp",
+        "zstd"
+      ]
+    },
     "zlib",
     "zstd"
   ],
@@ -159,6 +186,7 @@
         },
         "py-lxml",
         "py-markupsafe",
+        "py-matplotlib",
         "py-networkx",
         "py-numpy",
         "py-owslib",
@@ -249,7 +277,6 @@
       "description": "Determines whether QGIS gui should be built",
       "dependencies": [
         "qscintilla",
-        "qtmultimedia",
         "qwt"
       ]
     },
@@ -293,6 +320,18 @@
       "description": "Build with SFCGAL support",
       "dependencies": [
         "sfcgal"
+      ]
+    },
+    "tracy": {
+      "description": "Add Tracy profiler client support",
+      "dependencies": [
+        {
+          "name": "tracy",
+          "features": [
+            "fibers",
+            "on-demand"
+          ]
+        }
       ]
     }
   }

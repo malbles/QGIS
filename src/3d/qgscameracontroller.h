@@ -99,13 +99,13 @@ class _3D_EXPORT QgsCameraController : public QObject
      * Returns the vertical axis inversion behavior.
      * \since QGIS 3.18
      */
-    Qgis::VerticalAxisInversion verticalAxisInversion() const { return mVerticalAxisInversion; }
+    Qgis::VerticalAxisInversionFlags verticalAxisInversion() const { return mVerticalAxisInversion; }
 
     /**
      * Sets the vertical axis \a inversion behavior.
      * \since QGIS 3.18
      */
-    void setVerticalAxisInversion( Qgis::VerticalAxisInversion inversion );
+    void setVerticalAxisInversion( Qgis::VerticalAxisInversionFlags inversion );
 
     //! Called internally from 3D scene when a new frame is generated. Updates camera according to keyboard/mouse input
     void frameTriggered( float dt );
@@ -341,6 +341,12 @@ class _3D_EXPORT QgsCameraController : public QObject
     QgsCameraController( const QgsCameraController &other );
 #endif
 
+    /**
+     * Updates orthographic projection plane size based on distance from
+     * view center when orthographic projection is being used.
+     */
+    void updateOrthographicProjectionPlane();
+    //! Sets mCamera parameters based on mCameraPose
     void updateCameraFromPose();
     //! Returns a pointer to the scene's engine's window or nullptr if engine is QgsOffscreen3DEngine
     QWindow *window() const;
@@ -348,22 +354,24 @@ class _3D_EXPORT QgsCameraController : public QObject
     //! List of possible operations with the mouse in TerrainBased navigation
     enum class MouseOperation
     {
-      None = 0,       // no operation
-      Translation,    // left button pressed, no modifier
-      RotationCamera, // left button pressed + ctrl modifier
-      RotationCenter, // left button pressed + shift modifier
-      Zoom,           // right button pressed
-      ZoomWheel       // mouse wheel scroll
+      None = 0,       //!< No operation
+      Translation,    //!< Left button pressed, no modifier
+      RotationCamera, //!< Left button pressed + ctrl modifier
+      RotationCenter, //!< Left button pressed + shift modifier
+      Zoom,           //!< Right button pressed
+      ZoomWheel       //!< Mouse wheel scroll
     };
 
     // This list gathers all the rotation and translation operations.
     // It is used to update the appropriate parameters when successive
     // translation and rotation happen.
+    // clang-format off
     const QList<MouseOperation> mTranslateOrRotate = {
       MouseOperation::Translation,
       MouseOperation::RotationCamera,
       MouseOperation::RotationCenter
     };
+    // clang-format on
 
     // check that current sequence (current operation and new operation) is a rotation or translation
     bool isATranslationRotationSequence( MouseOperation newOperation ) const;
@@ -491,7 +499,7 @@ class _3D_EXPORT QgsCameraController : public QObject
     Qt3DInput::QKeyboardHandler *mKeyboardHandler = nullptr;
     bool mInputHandlersEnabled = true;
     Qgis::NavigationMode mCameraNavigationMode = Qgis::NavigationMode::TerrainBased;
-    Qgis::VerticalAxisInversion mVerticalAxisInversion = Qgis::VerticalAxisInversion::WhenDragging;
+    Qgis::VerticalAxisInversionFlags mVerticalAxisInversion = Qgis::VerticalAxisInversion::WhenPivoting | Qgis::VerticalAxisInversion::WhenRotatingDragging;
     double mCameraMovementSpeed = 5.0;
 
     QSet<int> mDepressedKeys;

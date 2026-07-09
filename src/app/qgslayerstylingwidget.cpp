@@ -45,6 +45,8 @@
 #include "qgsrendererpropertiesdialog.h"
 #include "qgsrendererrasterpropertieswidget.h"
 #include "qgsrendererregistry.h"
+#include "qgssettingsentryimpl.h"
+#include "qgssettingstree.h"
 #include "qgsstyle.h"
 #include "qgssymbolwidgetcontext.h"
 #include "qgsundowidget.h"
@@ -115,7 +117,16 @@ QgsLayerStylingWidget::QgsLayerStylingWidget( QgsMapCanvas *canvas, QgsMessageBa
   connect( mLayerCombo, &QgsMapLayerComboBox::layerChanged, this, &QgsLayerStylingWidget::setLayer );
   connect( mLiveApplyCheck, &QAbstractButton::toggled, this, &QgsLayerStylingWidget::liveApplyToggled );
 
-  mLayerCombo->setFilters( Qgis::LayerFilter::HasGeometry | Qgis::LayerFilter::RasterLayer | Qgis::LayerFilter::PluginLayer | Qgis::LayerFilter::MeshLayer | Qgis::LayerFilter::VectorTileLayer | Qgis::LayerFilter::PointCloudLayer | Qgis::LayerFilter::TiledSceneLayer | Qgis::LayerFilter::AnnotationLayer );
+  mLayerCombo->setFilters(
+    Qgis::LayerFilter::HasGeometry
+    | Qgis::LayerFilter::RasterLayer
+    | Qgis::LayerFilter::PluginLayer
+    | Qgis::LayerFilter::MeshLayer
+    | Qgis::LayerFilter::VectorTileLayer
+    | Qgis::LayerFilter::PointCloudLayer
+    | Qgis::LayerFilter::TiledSceneLayer
+    | Qgis::LayerFilter::AnnotationLayer
+  );
   mLayerCombo->setAdditionalLayers( { QgsProject::instance()->mainAnnotationLayer() } );
 
   mStackedWidget->setCurrentIndex( 0 );
@@ -489,6 +500,10 @@ void QgsLayerStylingWidget::updateCurrentWidgetLayer()
     {
       mDiagramWidget = widget;
     }
+    else if ( QgsRasterAttributeTableWidget *widget = qobject_cast<QgsRasterAttributeTableWidget *>( current ) )
+    {
+      mRasterAttributeTableWidget = widget;
+    }
     else
     {
       delete current;
@@ -717,21 +732,20 @@ void QgsLayerStylingWidget::updateCurrentWidgetLayer()
             }
             else
             {
-              if ( !mRasterAttributeTableDisabledWidget )
-              {
-                mRasterAttributeTableDisabledWidget = new QgsPanelWidget { mWidgetStack };
-                QVBoxLayout *layout = new QVBoxLayout { mRasterAttributeTableDisabledWidget };
-                mRasterAttributeTableDisabledWidget->setLayout( layout );
-                QLabel *label { new QLabel( tr( "There are no raster attribute tables associated with this data source.<br>"
-                                                "If the current symbology can be converted to an attribute table you "
-                                                "can create a new attribute table using the context menu available in the "
-                                                "layer tree or in the layer properties dialog." ) ) };
-                label->setWordWrap( true );
-                mRasterAttributeTableDisabledWidget->layout()->addWidget( label );
-                layout->addStretch();
-                mRasterAttributeTableDisabledWidget->setDockMode( true );
-              }
-              mWidgetStack->setMainPanel( mRasterAttributeTableDisabledWidget );
+              QgsPanelWidget *widget = new QgsPanelWidget { mWidgetStack };
+              QVBoxLayout *layout = new QVBoxLayout { widget };
+              widget->setLayout( layout );
+              QLabel *label { new QLabel( tr(
+                "There are no raster attribute tables associated with this data source.<br>"
+                "If the current symbology can be converted to an attribute table you "
+                "can create a new attribute table using the context menu available in the "
+                "layer tree or in the layer properties dialog."
+              ) ) };
+              label->setWordWrap( true );
+              widget->layout()->addWidget( label );
+              layout->addStretch();
+              widget->setDockMode( true );
+              mWidgetStack->setMainPanel( widget );
             }
 
             break;
@@ -959,6 +973,10 @@ void QgsLayerStylingWidget::emitLayerStyleRenamed()
 }
 
 
+const QgsSettingsEntryInteger *QgsMapLayerStyleCommand::settingsStyleUndoMergeTimeout
+  = new QgsSettingsEntryInteger( u"style-undo-merge-timeout"_s, QgsSettingsTree::sTreeGui, 500, u"Timeout in milliseconds for merging successive style undo commands"_s );
+
+
 QgsMapLayerStyleCommand::QgsMapLayerStyleCommand( QgsMapLayer *layer, const QString &text, const QDomNode &current, const QDomNode &last, bool triggerRepaint )
   : QUndoCommand( text )
   , mLayer( layer )
@@ -966,8 +984,7 @@ QgsMapLayerStyleCommand::QgsMapLayerStyleCommand( QgsMapLayer *layer, const QStr
   , mLastState( last )
   , mTime( QTime::currentTime() )
   , mTriggerRepaint( triggerRepaint )
-{
-}
+{}
 
 void QgsMapLayerStyleCommand::undo()
 {
@@ -999,7 +1016,7 @@ bool QgsMapLayerStyleCommand::mergeWith( const QUndoCommand *other )
   // only merge commands if they are created shortly after each other
   // (e.g. user keeps modifying one property)
   QgsSettings settings;
-  int timeout = settings.value( u"UI/styleUndoMergeTimeout"_s, 500 ).toInt();
+  int timeout = settingsStyleUndoMergeTimeout->value();
   if ( mTime.msecsTo( otherCmd->mTime ) > timeout )
     return false;
 

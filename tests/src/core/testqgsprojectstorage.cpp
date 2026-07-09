@@ -40,8 +40,7 @@ class TestQgsProjectStorage : public QObject
 };
 
 void TestQgsProjectStorage::init()
-{
-}
+{}
 
 void TestQgsProjectStorage::cleanup()
 {
@@ -50,13 +49,6 @@ void TestQgsProjectStorage::cleanup()
 
 void TestQgsProjectStorage::initTestCase()
 {
-  // Runs once before any tests are run
-
-  // Set up the QgsSettings environment
-  QCoreApplication::setOrganizationName( u"QGIS"_s );
-  QCoreApplication::setOrganizationDomain( u"qgis.org"_s );
-  QCoreApplication::setApplicationName( u"QGIS-TEST"_s );
-
   QgsApplication::init();
   QgsApplication::initQgis();
 }
@@ -73,10 +65,7 @@ void TestQgsProjectStorage::cleanupTestCase()
 class MemoryStorage : public QgsProjectStorage
 {
   public:
-    QString type() override
-    {
-      return u"memory"_s;
-    }
+    QString type() override { return u"memory"_s; }
 
     QStringList listProjects( const QString &uri ) override
     {

@@ -42,7 +42,16 @@ namespace QgsWms
   {
     void appendOwsLayerStyles( QDomDocument &doc, QDomElement &layerElem, QgsMapLayer *currentLayer );
 
-    void appendOwsLayersFromTreeGroup( QDomDocument &doc, QDomElement &parentLayer, QgsServerInterface *serverIface, const QgsProject *project, const QgsWmsRequest &request, const QgsLayerTreeGroup *layerTreeGroup, QgsRectangle &combinedBBox, const QString &strGroup );
+    void appendOwsLayersFromTreeGroup(
+      QDomDocument &doc,
+      QDomElement &parentLayer,
+      QgsServerInterface *serverIface,
+      const QgsProject *project,
+      const QgsWmsRequest &request,
+      const QgsLayerTreeGroup *layerTreeGroup,
+      QgsRectangle &combinedBBox,
+      const QString &strGroup
+    );
 
     void appendOwsGeneralAndResourceList( QDomDocument &doc, QDomElement &parentElement, QgsServerInterface *serverIface, const QgsProject *project, const QgsWmsRequest &request );
   } // namespace
@@ -200,7 +209,16 @@ namespace QgsWms
       generalElem.appendChild( bboxElem );
     }
 
-    void appendOwsLayersFromTreeGroup( QDomDocument &doc, QDomElement &parentLayer, QgsServerInterface *serverIface, const QgsProject *project, const QgsWmsRequest &request, const QgsLayerTreeGroup *layerTreeGroup, QgsRectangle &combinedBBox, const QString &strGroup )
+    void appendOwsLayersFromTreeGroup(
+      QDomDocument &doc,
+      QDomElement &parentLayer,
+      QgsServerInterface *serverIface,
+      const QgsProject *project,
+      const QgsWmsRequest &request,
+      const QgsLayerTreeGroup *layerTreeGroup,
+      QgsRectangle &combinedBBox,
+      const QString &strGroup
+    )
     {
       const QStringList restrictedLayers = QgsServerProjectUtils::wmsRestrictedLayers( *project );
 
@@ -229,7 +247,9 @@ namespace QgsWms
             group = strGroup + "/" + name;
           }
 
-          appendOwsLayersFromTreeGroup( doc, parentLayer, serverIface, project, request, treeGroupChild, combinedBBox, group );
+          // when the group is opaque we should not append any child layers
+          if ( treeGroupChild->wmsGroupRequestMode() != Qgis::WmsGroupRequestMode::Opaque )
+            appendOwsLayersFromTreeGroup( doc, parentLayer, serverIface, project, request, treeGroupChild, combinedBBox, group );
         }
         else
         {

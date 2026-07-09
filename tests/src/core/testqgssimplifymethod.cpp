@@ -40,16 +40,10 @@ class TestQgsSimplifyMethod : public QObject
 };
 
 void TestQgsSimplifyMethod::initTestCase()
-{
-  // Set up the QgsSettings environment
-  QCoreApplication::setOrganizationName( u"QGIS"_s );
-  QCoreApplication::setOrganizationDomain( u"qgis.org"_s );
-  QCoreApplication::setApplicationName( u"QGIS-TEST"_s );
-}
+{}
 
 void TestQgsSimplifyMethod::cleanupTestCase()
-{
-}
+{}
 
 void TestQgsSimplifyMethod::init()
 {

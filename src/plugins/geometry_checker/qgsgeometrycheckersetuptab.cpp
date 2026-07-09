@@ -288,8 +288,10 @@ void QgsGeometryCheckerSetupTab::runChecks()
       }
     }
   }
-  QgsVectorLayer *lineLayerCheckLayer = ui.comboLineLayerIntersection->isEnabled() ? QgsProject::instance()->mapLayer<QgsVectorLayer *>( ui.comboLineLayerIntersection->currentData().toString() ) : nullptr;
-  QgsVectorLayer *followBoundaryCheckLayer = ui.comboBoxFollowBoundaries->isEnabled() ? QgsProject::instance()->mapLayer<QgsVectorLayer *>( ui.comboBoxFollowBoundaries->currentData().toString() ) : nullptr;
+  QgsVectorLayer *lineLayerCheckLayer = ui.comboLineLayerIntersection->isEnabled() ? QgsProject::instance()->mapLayer<QgsVectorLayer *>( ui.comboLineLayerIntersection->currentData().toString() )
+                                                                                   : nullptr;
+  QgsVectorLayer *followBoundaryCheckLayer = ui.comboBoxFollowBoundaries->isEnabled() ? QgsProject::instance()->mapLayer<QgsVectorLayer *>( ui.comboBoxFollowBoundaries->currentData().toString() )
+                                                                                      : nullptr;
   if ( layers.contains( lineLayerCheckLayer ) || layers.contains( followBoundaryCheckLayer ) )
   {
     QMessageBox::critical( this, tr( "Check Geometries" ), tr( "The selected input layers cannot contain a layer also selected for a topology check." ) );
@@ -424,7 +426,15 @@ void QgsGeometryCheckerSetupTab::runChecks()
     {
       nonEditableLayerNames.append( layer->name() );
     }
-    if ( QMessageBox::Yes != QMessageBox::question( this, tr( "Check Geometries" ), tr( "The following output layers are in a format that does not support editing features:\n%1\n\nThe geometry check can be performed, but it will not be possible to fix any errors. Do you want to continue?" ).arg( nonEditableLayerNames.join( "\n" ) ), QMessageBox::Yes, QMessageBox::No ) )
+    if ( QMessageBox::Yes
+         != QMessageBox::question(
+           this,
+           tr( "Check Geometries" ),
+           tr( "The following output layers are in a format that does not support editing features:\n%1\n\nThe geometry check can be performed, but it will not be possible to fix any errors. Do you want to continue?" )
+             .arg( nonEditableLayerNames.join( "\n" ) ),
+           QMessageBox::Yes,
+           QMessageBox::No
+         ) )
     {
       if ( ui.radioButtonOutputNew->isChecked() )
       {
@@ -465,18 +475,18 @@ void QgsGeometryCheckerSetupTab::runChecks()
     featurePools.insert( layer->id(), new QgsVectorDataProviderFeaturePool( layer, selectedOnly ) );
   }
 
-  QgsGeometryCheckContext *context = new QgsGeometryCheckContext( ui.spinBoxTolerance->value(), QgsProject::instance()->crs(), QgsProject::instance()->transformContext(), QgsProject::instance() );
+  auto context = std::make_unique<QgsGeometryCheckContext>( ui.spinBoxTolerance->value(), QgsProject::instance()->crs(), QgsProject::instance()->transformContext(), QgsProject::instance() );
 
   QList<QgsGeometryCheck *> checks;
   for ( const QgsGeometryCheckFactory *factory : QgsGeometryCheckFactoryRegistry::getCheckFactories() )
   {
-    QgsGeometryCheck *check = factory->createInstance( context, ui );
+    QgsGeometryCheck *check = factory->createInstance( context.get(), ui );
     if ( check )
     {
       checks.append( check );
     }
   }
-  QgsGeometryChecker *checker = new QgsGeometryChecker( checks, context, featurePools );
+  QgsGeometryChecker *checker = new QgsGeometryChecker( checks, std::move( context ), featurePools );
 
   emit checkerStarted( checker );
 

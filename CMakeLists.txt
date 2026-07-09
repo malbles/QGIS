@@ -1,6 +1,6 @@
 #############################################################
 # CMake settings
-cmake_minimum_required(VERSION 3.22.0)
+cmake_minimum_required(VERSION 3.22.0...4.3)
 set(CMAKE_COLOR_MAKEFILE ON)
 set(CMAKE_AUTORCC ON)
 # set path to additional CMake modules
@@ -9,9 +9,6 @@ set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 if("${CMAKE_VERSION}" VERSION_GREATER_EQUAL "3.27")
   # include(Dart) still used, as is the "Experimental" target
   cmake_policy(SET CMP0145 OLD)
-endif()
-if("${CMAKE_VERSION}" VERSION_GREATER_EQUAL "3.31")
-  cmake_policy(SET CMP0177 NEW)
 endif()
 
 # don't relink it only the shared object changes
@@ -30,6 +27,7 @@ set (WITH_PDAL TRUE CACHE BOOL "Determines whether PDAL support should be built"
 set (WITH_QGIS_PROCESS TRUE CACHE BOOL "Determines whether the standalone \"qgis_process\" tool should be built")
 set (WITH_QTPOSITIONING TRUE CACHE BOOL "Determines whether QtPositioning support should be included")
 set (WITH_VCPKG FALSE CACHE BOOL "Use the vcpkg submodule for dependency management.")
+set (WITH_TRACY FALSE CACHE BOOL "Determines whether Tracy profiler support should be included")
 
 set (SDK_PATH "" CACHE STRING "Build with VCPKG SDK")
 set (QGISPOSTFIX "" CACHE STRING "Optional postfix to apply to public shared objects and executables")
@@ -66,8 +64,8 @@ endif()
 
 #############################################################
 # Project and version
-set(CPACK_PACKAGE_VERSION_MAJOR "3")
-set(CPACK_PACKAGE_VERSION_MINOR "99")
+set(CPACK_PACKAGE_VERSION_MAJOR "4")
+set(CPACK_PACKAGE_VERSION_MINOR "1")
 set(CPACK_PACKAGE_VERSION_PATCH "0")
 set(COMPLETE_VERSION ${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH})
 set(RELEASE_NAME "Master")
@@ -81,6 +79,7 @@ message(STATUS "QGIS version: ${COMPLETE_VERSION} ${RELEASE_NAME} (${QGIS_VERSIO
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 set (ENABLE_LOCAL_BUILD_SHORTCUTS FALSE CACHE BOOL "Disables some build steps which are only relevant for releases to speed up compilation time for development")
 
@@ -418,7 +417,7 @@ if(WITH_CORE)
   #############################################################
   # search for dependencies
 
-  if(NOT WIN32 AND NOT ANDROID)
+  if(NOT WIN32 AND NOT ANDROID AND NOT EMSCRIPTEN)
     include(CheckFunctionExists)
     CHECK_FUNCTION_EXISTS(openpty OPENPTY_IN_LIBC)
     if(NOT OPENPTY_IN_LIBC)
@@ -571,14 +570,19 @@ if(WITH_CORE)
   if (WITH_DRACO)
     find_package(Draco REQUIRED)
     message(STATUS "Found Draco: ${DRACO_LIBRARY} (${DRACO_VERSION})")
-    set(HAVE_DRACO TRUE)  # used in qgisconfig.h
+    set(HAVE_DRACO TRUE)  # used in qgsconfig.h
+  endif()
+
+  if (WITH_TRACY)
+    find_package(Tracy REQUIRED)
+    set(HAVE_TRACY TRUE)
   endif()
 
   #############################################################
   # search for Qt
 
   set(QT_VERSION_MAJOR 6)
-  set(QT_MIN_VERSION 6.6.0)
+  set(QT_MIN_VERSION 6.4.0)
   set(QT_VERSION_BASE "Qt6")
   set(QT_VERSION_BASE_LOWER "qt6")
 

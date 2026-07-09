@@ -61,8 +61,10 @@ QString QgsGeometryCheckDegeneratePolygonAlgorithm::groupId() const
 
 QString QgsGeometryCheckDegeneratePolygonAlgorithm::shortHelpString() const
 {
-  return QObject::tr( "This algorithm checks the polygons with less than 3 points, which are degenerate polygons.\n"
-                      "Degenerate polygons are errors." );
+  return QObject::tr(
+    "This algorithm checks the polygons with less than 3 points, which are degenerate polygons.\n"
+    "Degenerate polygons are errors."
+  );
 }
 
 Qgis::ProcessingAlgorithmFlags QgsGeometryCheckDegeneratePolygonAlgorithm::flags() const
@@ -79,23 +81,19 @@ void QgsGeometryCheckDegeneratePolygonAlgorithm::initAlgorithm( const QVariantMa
 {
   Q_UNUSED( configuration )
 
-  addParameter( new QgsProcessingParameterFeatureSource(
-    u"INPUT"_s, QObject::tr( "Input layer" ), QList<int>() << static_cast<int>( Qgis::ProcessingSourceType::VectorPolygon )
-  ) );
-  addParameter( new QgsProcessingParameterField(
-    u"UNIQUE_ID"_s, QObject::tr( "Unique feature identifier" ), QString(), u"INPUT"_s
-  ) );
-  addParameter( new QgsProcessingParameterFeatureSink(
-    u"ERRORS"_s, QObject::tr( "Degenerate polygons errors" ), Qgis::ProcessingSourceType::VectorPoint
-  ) );
-  addParameter( new QgsProcessingParameterFeatureSink(
-    u"OUTPUT"_s, QObject::tr( "Degenerate polygons features" ), Qgis::ProcessingSourceType::VectorPolygon, QVariant(), true, false
-  ) );
+  addParameter( new QgsProcessingParameterFeatureSource( u"INPUT"_s, QObject::tr( "Input layer" ), QList<int>() << static_cast<int>( Qgis::ProcessingSourceType::VectorPolygon ) ) );
+  addParameter( new QgsProcessingParameterField( u"UNIQUE_ID"_s, QObject::tr( "Unique feature identifier" ), QString(), u"INPUT"_s ) );
+  addParameter( new QgsProcessingParameterFeatureSink( u"ERRORS"_s, QObject::tr( "Degenerate polygons errors" ), Qgis::ProcessingSourceType::VectorPoint ) );
+  addParameter( new QgsProcessingParameterFeatureSink( u"OUTPUT"_s, QObject::tr( "Degenerate polygons features" ), Qgis::ProcessingSourceType::VectorPolygon, QVariant(), true, false ) );
 
   auto tolerance = std::make_unique<QgsProcessingParameterNumber>( u"TOLERANCE"_s, QObject::tr( "Tolerance" ), Qgis::ProcessingNumberParameterType::Integer, 8, false, 1, 13 );
   tolerance->setFlags( tolerance->flags() | Qgis::ProcessingParameterFlag::Advanced );
-  tolerance->setHelp( QObject::tr( "The \"Tolerance\" advanced parameter defines the numerical precision of geometric operations, "
-                                   "given as an integer n, meaning that any difference smaller than 10⁻ⁿ (in map units) is considered zero." ) );
+  tolerance->setHelp(
+    QObject::tr(
+      "The \"Tolerance\" advanced parameter defines the numerical precision of geometric operations, "
+      "given as an integer n, meaning that any difference smaller than 10⁻ⁿ (in map units) is considered zero."
+    )
+  );
   addParameter( tolerance.release() );
 }
 
@@ -137,13 +135,9 @@ QVariantMap QgsGeometryCheckDegeneratePolygonAlgorithm::processAlgorithm( const 
   QgsFields fields = outputFields();
   fields.append( uniqueIdField );
 
-  std::unique_ptr<QgsFeatureSink> sink_output( parameterAsSink(
-    parameters, u"OUTPUT"_s, context, dest_output, fields, input->wkbType(), input->sourceCrs()
-  ) );
+  std::unique_ptr<QgsFeatureSink> sink_output( parameterAsSink( parameters, u"OUTPUT"_s, context, dest_output, fields, input->wkbType(), input->sourceCrs() ) );
 
-  std::unique_ptr<QgsFeatureSink> sink_errors( parameterAsSink(
-    parameters, u"ERRORS"_s, context, dest_errors, fields, Qgis::WkbType::Point, input->sourceCrs()
-  ) );
+  std::unique_ptr<QgsFeatureSink> sink_errors( parameterAsSink( parameters, u"ERRORS"_s, context, dest_errors, fields, Qgis::WkbType::Point, input->sourceCrs() ) );
   if ( !sink_errors )
     throw QgsProcessingException( invalidSinkError( parameters, u"ERRORS"_s ) );
 
@@ -197,24 +191,29 @@ QVariantMap QgsGeometryCheckDegeneratePolygonAlgorithm::processAlgorithm( const 
     QgsFeature f;
     QgsAttributes attrs = f.attributes();
 
-    attrs << error->layerId()
-          << inputLayer->name()
-          << error->vidx().part
-          << error->vidx().ring
-          << error->vidx().vertex
-          << error->location().x()
-          << error->location().y()
-          << error->value().toString()
-          << inputLayer->getFeature( error->featureId() ).attribute( uniqueIdField.name() );
+    attrs
+      << error->layerId()
+      << inputLayer->name()
+      << error->vidx().part
+      << error->vidx().ring
+      << error->vidx().vertex
+      << error->location().x()
+      << error->location().y()
+      << error->value().toString()
+      << inputLayer->getFeature( error->featureId() ).attribute( uniqueIdField.name() );
     f.setAttributes( attrs );
 
     f.setGeometry( error->geometry() );
     if ( sink_output && !sink_output->addFeature( f, QgsFeatureSink::FastInsert ) )
       throw QgsProcessingException( writeFeatureError( sink_output.get(), parameters, u"OUTPUT"_s ) );
+    else if ( sink_output )
+      feedback->featureAddedToSink( u"OUTPUT"_s );
 
     f.setGeometry( error->geometry().centroid() );
     if ( !sink_errors->addFeature( f, QgsFeatureSink::FastInsert ) )
       throw QgsProcessingException( writeFeatureError( sink_errors.get(), parameters, u"ERRORS"_s ) );
+    else
+      feedback->featureAddedToSink( u"ERRORS"_s );
 
     i++;
     feedback->setProgress( 100.0 * step * static_cast<double>( i ) );
@@ -232,6 +231,14 @@ QVariantMap QgsGeometryCheckDegeneratePolygonAlgorithm::processAlgorithm( const 
   {
     delete error;
   }
+
+  if ( sink_output )
+  {
+    sink_output->finalize();
+    feedback->featureSinkFinalized( u"OUTPUT"_s );
+  }
+  sink_errors->finalize();
+  feedback->featureSinkFinalized( u"ERRORS"_s );
 
   QVariantMap outputs;
   if ( sink_output )

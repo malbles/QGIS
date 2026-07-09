@@ -23,6 +23,7 @@
 #include "qgsexpressionbuilderdialog.h"
 #include "qgsexpressioncontextutils.h"
 #include "qgsfeaturelistmodel.h"
+#include "qgsfieldcalculator.h"
 #include "qgsfieldconditionalformatwidget.h"
 #include "qgsgui.h"
 #include "qgsifeatureselectionmanager.h"
@@ -33,10 +34,13 @@
 #include "qgsorganizetablecolumnsdialog.h"
 #include "qgsscrollarea.h"
 #include "qgssettings.h"
+#include "qgssettingsentryimpl.h"
+#include "qgssettingstree.h"
 #include "qgsshortcutsmanager.h"
 #include "qgsvectordataprovider.h"
 #include "qgsvectorlayercache.h"
 #include "qgsvectorlayereditbuffer.h"
+#include "qgsvectorlayerjoinbuffer.h"
 
 #include <QClipboard>
 #include <QDialog>
@@ -53,8 +57,16 @@
 
 using namespace Qt::StringLiterals;
 
-const std::unique_ptr<QgsSettingsEntryVariant> QgsDualView::conditionalFormattingSplitterState = std::make_unique<QgsSettingsEntryVariant>( u"attribute-table-splitter-state"_s, QgsSettingsTree::sTreeWindowState, QgsVariantUtils::createNullVariant( QMetaType::Type::QByteArray ), u"State of conditional formatting splitter's layout so it could be restored when opening attribute table view."_s );
-const std::unique_ptr<QgsSettingsEntryVariant> QgsDualView::attributeEditorSplitterState = std::make_unique<QgsSettingsEntryVariant>( u"attribute-editor-splitter-state"_s, QgsSettingsTree::sTreeWindowState, QgsVariantUtils::createNullVariant( QMetaType::Type::QByteArray ), u"State of attribute editor splitter's layout so it could be restored when opening attribute editor view."_s );
+const QgsSettingsEntryBool *QgsDualView::settingsFeatureListHighlightFeature
+  = new QgsSettingsEntryBool( u"feature-list-highlight-feature"_s, QgsSettingsTree::sTreeAttributeTable, true, QObject::tr( "Whether to highlight/flash features in the feature list view" ) );
+
+const QgsSettingsEntryInteger *QgsDualView::settingsAttributeTableRowCache
+  = new QgsSettingsEntryInteger( u"row-cache"_s, QgsSettingsTree::sTreeAttributeTable, 10000, QObject::tr( "Maximum number of rows to cache in the attribute table (0 means cache all rows)" ) );
+
+const std::unique_ptr<QgsSettingsEntryVariant> QgsDualView::conditionalFormattingSplitterState = std::make_unique<
+  QgsSettingsEntryVariant>( u"attribute-table-splitter-state"_s, QgsSettingsTree::sTreeWindowState, QgsVariantUtils::createNullVariant( QMetaType::Type::QByteArray ), u"State of conditional formatting splitter's layout so it could be restored when opening attribute table view."_s );
+const std::unique_ptr<QgsSettingsEntryVariant> QgsDualView::attributeEditorSplitterState = std::make_unique<
+  QgsSettingsEntryVariant>( u"attribute-editor-splitter-state"_s, QgsSettingsTree::sTreeWindowState, QgsVariantUtils::createNullVariant( QMetaType::Type::QByteArray ), u"State of attribute editor splitter's layout so it could be restored when opening attribute editor view."_s );
 
 QgsDualView::QgsDualView( QWidget *parent )
   : QStackedWidget( parent )
@@ -86,6 +98,7 @@ QgsDualView::QgsDualView( QWidget *parent )
 
   // Set preview icon
   mActionExpressionPreview->setIcon( QgsApplication::getThemeIcon( u"/mIconExpressionPreview.svg"_s ) );
+  mActionExpressionPreview->setText( tr( "Expression" ) );
 
   // Connect layer list preview signals
   connect( mActionExpressionPreview, &QAction::triggered, this, &QgsDualView::previewExpressionBuilder );
@@ -118,13 +131,12 @@ QgsDualView::QgsDualView( QWidget *parent )
   if ( bt )
     bt->setChecked( true );
   connect( buttonGroup, qOverload<QAbstractButton *, bool>( &QButtonGroup::buttonToggled ), this, &QgsDualView::panZoomGroupButtonToggled );
-  mFlashButton->setChecked( QgsSettings().value( u"/qgis/attributeTable/featureListHighlightFeature"_s, true ).toBool() );
+  mFlashButton->setChecked( settingsFeatureListHighlightFeature->value() );
   connect( mFlashButton, &QToolButton::clicked, this, &QgsDualView::flashButtonClicked );
 }
 
 QgsDualView::~QgsDualView()
-{
-}
+{}
 
 void QgsDualView::init( QgsVectorLayer *layer, QgsMapCanvas *mapCanvas, const QgsFeatureRequest &request, const QgsAttributeEditorContext &context, bool loadFeatures, bool showFirstFeature )
 {
@@ -138,6 +150,8 @@ void QgsDualView::init( QgsVectorLayer *layer, QgsMapCanvas *mapCanvas, const Qg
 
   // Keep fields order in sync: force config reset
   connect( mLayer, &QgsVectorLayer::updatedFields, this, [this] {
+    // Prevent crash if a field was deleted when the sort expression contained a reference to it.
+    mConfig.update( mLayer->fields() );
     mFilterModel->setAttributeTableConfig( attributeTableConfig(), /* force */ true );
   } );
 
@@ -148,7 +162,8 @@ void QgsDualView::init( QgsVectorLayer *layer, QgsMapCanvas *mapCanvas, const Qg
 
   const QgsExpression sortingExpression = QgsExpression( mConfig.sortExpression() );
 
-  const bool needsGeometry = mLayer->conditionalStyles()->rulesNeedGeometry() || !( request.flags() & Qgis::FeatureRequestFlag::NoGeometry )
+  const bool needsGeometry = mLayer->conditionalStyles()->rulesNeedGeometry()
+                             || !( request.flags() & Qgis::FeatureRequestFlag::NoGeometry )
                              || ( request.spatialFilterType() != Qgis::SpatialFilterType::NoFilter )
                              || emptyForm.needsGeometry()
                              || sortingExpression.needsGeometry();
@@ -249,15 +264,20 @@ void QgsDualView::columnBoxInit()
     const QString fieldName = field.name();
     if ( QgsGui::editorWidgetRegistry()->findBest( mLayer, fieldName ).type() != "Hidden"_L1 )
     {
-      const QIcon icon = mLayer->fields().iconForField( fieldIndex );
-      const QString text = mLayer->attributeDisplayName( fieldIndex );
+      const QIcon fieldIcon = mLayer->fields().iconForField( fieldIndex );
+      const QString fieldDisplayName = mLayer->attributeDisplayName( fieldIndex );
 
       // Generate action for the preview popup button of the feature list
-      QAction *previewAction = new QAction( icon, text, mFeatureListPreviewButton );
+      QAction *previewAction = new QAction( fieldIcon, fieldDisplayName, mFeatureListPreviewButton );
       connect( previewAction, &QAction::triggered, this, [this, previewAction, fieldName] { previewColumnChanged( previewAction, fieldName ); } );
       mPreviewColumnsMenu->addAction( previewAction );
 
-      if ( text == displayExpression || u"COALESCE( \"%1\", '<NULL>' )"_s.arg( text ) == displayExpression || u"\"%1\""_s.arg( text ) == displayExpression )
+      if ( fieldDisplayName == displayExpression
+           || u"COALESCE( \"%1\", '<NULL>' )"_s.arg( fieldDisplayName ) == displayExpression
+           || u"\"%1\""_s.arg( fieldDisplayName ) == displayExpression
+           || fieldName == displayExpression
+           || u"COALESCE( \"%1\", '<NULL>' )"_s.arg( fieldName ) == displayExpression
+           || u"\"%1\""_s.arg( fieldName ) == displayExpression )
       {
         defaultFieldAction = previewAction;
       }
@@ -269,14 +289,10 @@ void QgsDualView::columnBoxInit()
   sortMenuAction->setMenu( sortMenu );
 
   QAction *sortByPreviewExpressionAsc = new QAction( QgsApplication::getThemeIcon( u"sort.svg"_s ), tr( "By Display Name (Ascending)" ), this );
-  connect( sortByPreviewExpressionAsc, &QAction::triggered, this, [this]() {
-    mFeatureListModel->setSortByDisplayExpression( true, Qt::AscendingOrder );
-  } );
+  connect( sortByPreviewExpressionAsc, &QAction::triggered, this, [this]() { mFeatureListModel->setSortByDisplayExpression( true, Qt::AscendingOrder ); } );
   sortMenu->addAction( sortByPreviewExpressionAsc );
   QAction *sortByPreviewExpressionDesc = new QAction( QgsApplication::getThemeIcon( u"sort-reverse.svg"_s ), tr( "By Display Name (Descending)" ), this );
-  connect( sortByPreviewExpressionDesc, &QAction::triggered, this, [this]() {
-    mFeatureListModel->setSortByDisplayExpression( true, Qt::DescendingOrder );
-  } );
+  connect( sortByPreviewExpressionDesc, &QAction::triggered, this, [this]() { mFeatureListModel->setSortByDisplayExpression( true, Qt::DescendingOrder ); } );
   sortMenu->addAction( sortByPreviewExpressionDesc );
   QAction *sortByPreviewExpressionCustom = new QAction( QgsApplication::getThemeIcon( u"mIconExpressionPreview.svg"_s ), tr( "By Custom Expression" ), this );
   connect( sortByPreviewExpressionCustom, &QAction::triggered, this, [this]() {
@@ -299,7 +315,7 @@ void QgsDualView::columnBoxInit()
   }
   else
   {
-    mActionExpressionPreview->setText( displayExpression );
+    mActionExpressionPreview->setToolTip( displayExpression );
     mFeatureListPreviewButton->setDefaultAction( mActionExpressionPreview );
 
     mFeatureListView->setDisplayExpression( displayExpression );
@@ -354,9 +370,10 @@ void QgsDualView::setFilterMode( QgsAttributeTableFilterModel::FilterMode filter
   const QgsAttributeForm emptyForm( mLayer, QgsFeature(), mEditorContext );
   const bool needsGeometry = ( filterMode == QgsAttributeTableFilterModel::ShowVisible ) || emptyForm.needsGeometry() || QgsExpression( mConfig.sortExpression() ).needsGeometry();
 
-  const bool requiresTableReload = ( request.filterType() != Qgis::Qgis::FeatureRequestFilterType::NoFilter || request.spatialFilterType() != Qgis::SpatialFilterType::NoFilter ) // previous request was subset
-                                   || ( needsGeometry && request.flags() & Qgis::FeatureRequestFlag::NoGeometry )                                                                 // no geometry for last request
-                                   || ( mMasterModel->rowCount() == 0 );                                                                                                          // no features
+  const bool requiresTableReload = ( request.filterType() != Qgis::Qgis::FeatureRequestFilterType::NoFilter
+                                     || request.spatialFilterType() != Qgis::SpatialFilterType::NoFilter )        // previous request was subset
+                                   || ( needsGeometry && request.flags() & Qgis::FeatureRequestFlag::NoGeometry ) // no geometry for last request
+                                   || ( mMasterModel->rowCount() == 0 );                                          // no features
 
   request.setFlags( request.flags().setFlag( Qgis::FeatureRequestFlag::NoGeometry, !needsGeometry ) );
   request.setFilterFids( QgsFeatureIds() );
@@ -449,8 +466,7 @@ void QgsDualView::setSelectedOnTop( bool selectedOnTop )
 void QgsDualView::initLayerCache( bool cacheGeometry )
 {
   // Initialize the cache
-  const QgsSettings settings;
-  const int cacheSize = settings.value( u"qgis/attributeTableRowCache"_s, "10000" ).toInt();
+  const int cacheSize = settingsAttributeTableRowCache->value();
   mLayerCache = new QgsVectorLayerCache( mLayer, cacheSize, this );
   mLayerCache->setCacheSubsetOfAttributes( requiredAttributes( mLayer ) );
   mLayerCache->setCacheGeometry( cacheGeometry );
@@ -497,7 +513,9 @@ void QgsDualView::restoreRecentDisplayExpressions()
   const QVariantList previewExpressions = mLayer->customProperty( u"dualview/previewExpressions"_s ).toList();
 
   for ( const QVariant &previewExpression : previewExpressions )
+  {
     insertRecentlyUsedDisplayExpression( previewExpression.toString() );
+  }
 }
 
 void QgsDualView::saveRecentDisplayExpressions() const
@@ -580,7 +598,8 @@ void QgsDualView::insertRecentlyUsedDisplayExpression( const QString &expression
   previewAction->setProperty( "previewExpression", expression );
   connect( previewAction, &QAction::triggered, this, [expression, this]( bool ) {
     setDisplayExpression( expression );
-    mFeatureListPreviewButton->setText( expression );
+    mFeatureListPreviewButton->setText( tr( "Expression" ) );
+    mFeatureListPreviewButton->setToolTip( expression );
   } );
 
   mFeatureListPreviewButton->insertAction( mLastDisplayExpressionAction, previewAction );
@@ -608,18 +627,12 @@ void QgsDualView::panOrZoomToFeature( const QgsFeatureIds &featureset )
     if ( mBrowsingAutoPanScaleAllowed )
     {
       if ( mAutoPanButton->isChecked() )
-        QTimer::singleShot( 0, this, [this, featureset, canvas]() {
-          canvas->panToFeatureIds( mLayer, featureset, false );
-        } );
+        QTimer::singleShot( 0, this, [this, featureset, canvas]() { canvas->panToFeatureIds( mLayer, featureset, false ); } );
       else if ( mAutoZoomButton->isChecked() )
-        QTimer::singleShot( 0, this, [this, featureset, canvas]() {
-          canvas->zoomToFeatureIds( mLayer, featureset );
-        } );
+        QTimer::singleShot( 0, this, [this, featureset, canvas]() { canvas->zoomToFeatureIds( mLayer, featureset ); } );
     }
     if ( mFlashButton->isChecked() )
-      QTimer::singleShot( 0, this, [this, featureset, canvas]() {
-        canvas->flashFeatureIds( mLayer, featureset );
-      } );
+      QTimer::singleShot( 0, this, [this, featureset, canvas]() { canvas->flashFeatureIds( mLayer, featureset ); } );
     mLastFeatureSet = featureset;
   }
 }
@@ -663,7 +676,7 @@ void QgsDualView::panZoomGroupButtonToggled( QAbstractButton *button, bool check
 
 void QgsDualView::flashButtonClicked( bool clicked )
 {
-  QgsSettings().setValue( u"/qgis/attributeTable/featureListHighlightFeature"_s, clicked );
+  settingsFeatureListHighlightFeature->setValue( clicked );
   if ( !clicked )
     return;
 
@@ -776,7 +789,7 @@ void QgsDualView::previewExpressionBuilder()
   if ( dlg.exec() == QDialog::Accepted )
   {
     mFeatureListView->setDisplayExpression( dlg.expressionText() );
-    mActionExpressionPreview->setText( dlg.expressionText() );
+    mActionExpressionPreview->setToolTip( dlg.expressionText() );
 
     mFeatureListPreviewButton->setDefaultAction( mActionExpressionPreview );
     mFeatureListPreviewButton->setPopupMode( QToolButton::MenuButtonPopup );
@@ -793,7 +806,6 @@ void QgsDualView::previewColumnChanged( QAction *previewAction, const QString &e
   }
   else
   {
-    mActionExpressionPreview->setText( tr( "Expression" ) );
     mFeatureListPreviewButton->setText( previewAction->text() );
     mFeatureListPreviewButton->setIcon( previewAction->icon() );
     mFeatureListPreviewButton->setPopupMode( QToolButton::InstantPopup );
@@ -874,9 +886,7 @@ void QgsDualView::viewWillShowContextMenu( QMenu *menu, const QModelIndex &maste
 
     QAction *copyContentAction = menu->addAction( tr( "Copy Cell Content (%1)" ).arg( previewDisplayValue ) );
     menu->addAction( copyContentAction );
-    connect( copyContentAction, &QAction::triggered, this, [displayValue] {
-      QApplication::clipboard()->setText( displayValue.toString() );
-    } );
+    connect( copyContentAction, &QAction::triggered, this, [displayValue] { QApplication::clipboard()->setText( displayValue.toString() ); } );
   }
 
   const QVariant rawValue = mMasterModel->data( masterIndex, Qt::EditRole );
@@ -892,9 +902,7 @@ void QgsDualView::viewWillShowContextMenu( QMenu *menu, const QModelIndex &maste
 
     QAction *copyRawContentAction = menu->addAction( tr( "Copy Raw Value (%1)" ).arg( previewRawValue ) );
     menu->addAction( copyRawContentAction );
-    connect( copyRawContentAction, &QAction::triggered, this, [rawValue] {
-      QApplication::clipboard()->setText( rawValue.toString() );
-    } );
+    connect( copyRawContentAction, &QAction::triggered, this, [rawValue] { QApplication::clipboard()->setText( rawValue.toString() ); } );
   }
 
   QgsVectorLayer *vl = mFilterModel->layer();
@@ -1027,6 +1035,56 @@ void QgsDualView::showViewHeaderMenu( QPoint point )
   connect( sort, &QAction::triggered, this, [this]() { modifySort(); } );
   mHorizontalHeaderMenu->addAction( sort );
 
+  mConfig.update( mLayer->fields() );
+  // get layer field index from column name
+  int fieldIndex = -1;
+  if ( col != -1 )
+    fieldIndex = mLayer->fields().indexFromName( mConfig.columns().at( mConfig.mapVisibleColumnToIndex( col ) ).name );
+  const Qgis::FieldOrigin fieldOrigin = mLayer->fields().fieldOrigin( fieldIndex );
+
+  mHorizontalHeaderMenu->addSeparator();
+
+  const QgsVectorLayer *vl = mFilterModel->layer();
+  const QgsVectorDataProvider *dataProvider = vl->dataProvider();
+  const Qgis::VectorProviderCapabilities caps = dataProvider->capabilities();
+  const bool layerIsReadOnly { vl->readOnly() };
+  const bool canChangeAttributeValue = !layerIsReadOnly && ( caps & Qgis::VectorProviderCapability::ChangeAttributeValues );
+
+  bool fieldCalculatorEnabled = false;
+
+  switch ( fieldOrigin )
+  {
+    case Qgis::FieldOrigin::Provider:
+    case Qgis::FieldOrigin::Edit:
+      fieldCalculatorEnabled = canChangeAttributeValue;
+      break;
+    case Qgis::FieldOrigin::Join:
+    {
+      int srcFieldIndex;
+      const QgsVectorLayerJoinInfo *info = mLayer->joinBuffer()->joinForFieldIndex( fieldIndex, mLayer->fields(), srcFieldIndex );
+      const QgsVectorLayer *joinedLayer = info->joinLayer();
+      const QgsVectorDataProvider *joinedDataProvider = joinedLayer->dataProvider();
+      const Qgis::VectorProviderCapabilities joinedCaps = joinedDataProvider->capabilities();
+      const bool joinedLayerIsReadOnly { joinedLayer->readOnly() };
+      const bool joinedLayerCanChangeAttributeValue = !joinedLayerIsReadOnly && ( joinedCaps & Qgis::VectorProviderCapability::ChangeAttributeValues );
+      if ( info && info->isEditable() )
+        fieldCalculatorEnabled = joinedLayerCanChangeAttributeValue;
+      break;
+    }
+    case Qgis::FieldOrigin::Unknown:
+    case Qgis::FieldOrigin::Expression:
+      break;
+    default:
+      break;
+  }
+
+  QAction *fieldCalculator = new QAction( tr( "Open &Field Calculator…" ), mHorizontalHeaderMenu );
+  connect( fieldCalculator, &QAction::triggered, this, &QgsDualView::fieldCalculator );
+  fieldCalculator->setData( fieldIndex );
+  mHorizontalHeaderMenu->addAction( fieldCalculator );
+
+  fieldCalculator->setEnabled( fieldCalculatorEnabled );
+
   mHorizontalHeaderMenu->popup( mTableView->horizontalHeader()->mapToGlobal( point ) );
 }
 
@@ -1066,6 +1124,21 @@ void QgsDualView::hideColumn()
   {
     config.setColumnHidden( sourceCol, true );
     setAttributeTableConfig( config );
+  }
+}
+
+void QgsDualView::fieldCalculator()
+{
+  QAction *action = qobject_cast<QAction *>( sender() );
+  const int fieldIndex = action->data().toInt();
+  mConfig.update( mLayer->fields() );
+  QgsFieldCalculator calc( mLayer, this, fieldIndex );
+  if ( calc.exec() == QDialog::Accepted )
+  {
+    int col = mMasterModel->fieldCol( calc.changedAttributeId() );
+
+    if ( col >= 0 )
+      mMasterModel->reload( mMasterModel->index( 0, col ), mMasterModel->index( mMasterModel->rowCount() - 1, col ) );
   }
 }
 

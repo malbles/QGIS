@@ -48,7 +48,8 @@ class TestQgsVectorLayer : public QgsTest
     Q_OBJECT
   public:
     TestQgsVectorLayer()
-      : QgsTest( u"Vector Renderer Tests"_s ) {}
+      : QgsTest( u"Vector Renderer Tests"_s )
+    {}
 
   private:
     bool mTestHasError = false;
@@ -101,9 +102,7 @@ void TestQgsVectorLayer::initTestCase()
   const QFileInfo myDbfFileInfo( myDbfFileName );
   mpNonSpatialLayer = new QgsVectorLayer( myDbfFileInfo.filePath(), myDbfFileInfo.completeBaseName(), u"ogr"_s );
   // Register the layer with the registry
-  QgsProject::instance()->addMapLayers(
-    QList<QgsMapLayer *>() << mpNonSpatialLayer
-  );
+  QgsProject::instance()->addMapLayers( QList<QgsMapLayer *>() << mpNonSpatialLayer );
   //
   //create a point layer that will be used in all tests...
   //
@@ -111,9 +110,7 @@ void TestQgsVectorLayer::initTestCase()
   const QFileInfo myPointFileInfo( myPointsFileName );
   mpPointsLayer = new QgsVectorLayer( myPointFileInfo.filePath(), myPointFileInfo.completeBaseName(), u"ogr"_s );
   // Register the layer with the registry
-  QgsProject::instance()->addMapLayers(
-    QList<QgsMapLayer *>() << mpPointsLayer
-  );
+  QgsProject::instance()->addMapLayers( QList<QgsMapLayer *>() << mpPointsLayer );
 
   //
   //create a poly layer that will be used in all tests...
@@ -122,9 +119,7 @@ void TestQgsVectorLayer::initTestCase()
   const QFileInfo myPolyFileInfo( myPolysFileName );
   mpPolysLayer = new QgsVectorLayer( myPolyFileInfo.filePath(), myPolyFileInfo.completeBaseName(), u"ogr"_s );
   // Register the layer with the registry
-  QgsProject::instance()->addMapLayers(
-    QList<QgsMapLayer *>() << mpPolysLayer
-  );
+  QgsProject::instance()->addMapLayers( QList<QgsMapLayer *>() << mpPolysLayer );
 
 
   //
@@ -134,9 +129,7 @@ void TestQgsVectorLayer::initTestCase()
   const QFileInfo myLineFileInfo( myLinesFileName );
   mpLinesLayer = new QgsVectorLayer( myLineFileInfo.filePath(), myLineFileInfo.completeBaseName(), u"ogr"_s );
   // Register the layer with the registry
-  QgsProject::instance()->addMapLayers(
-    QList<QgsMapLayer *>() << mpLinesLayer
-  );
+  QgsProject::instance()->addMapLayers( QList<QgsMapLayer *>() << mpLinesLayer );
 }
 
 void TestQgsVectorLayer::cleanupTestCase()
@@ -331,7 +324,7 @@ void TestQgsVectorLayer::testAddTopologicalPoints()
 
   layerLine->startEditing();
   layerLine->addFeature( lineF1 );
-  const QgsFeatureId fidLineF1 = lineF1.id();
+  QgsFeatureId fidLineF1 = lineF1.id();
   QCOMPARE( layerLine->featureCount(), ( long ) 1 );
 
   QCOMPARE( layerLine->undoStack()->index(), 1 );
@@ -357,6 +350,14 @@ void TestQgsVectorLayer::testAddTopologicalPoints()
   QCOMPARE( layerLine->undoStack()->index(), 2 );
   QCOMPARE( layerLine->getFeature( fidLineF1 ).geometry().asWkt(), QgsGeometry::fromWkt( "LINESTRING(2 1, 1 1, 1 2, 1 5)" ).asWkt() );
 
+  // add point with Z on segment of linestring
+  layerLine->undoStack()->undo();
+  result = layerLine->addTopologicalPoints( QgsPoint( 1, 2, 3 ) );
+  QCOMPARE( result, 0 );
+
+  QCOMPARE( layerLine->undoStack()->index(), 2 );
+  QCOMPARE( layerLine->getFeature( fidLineF1 ).geometry().asWkt(), QgsGeometry::fromWkt( "LINESTRING(2 1, 1 1, 1 2, 1 5)" ).asWkt() );
+
   // add points from disjoint geometry - nothing should happen
   result = layerLine->addTopologicalPoints( QgsGeometry::fromWkt( "LINESTRING(2 0, 2 1, 2 2)" ) );
   QCOMPARE( result, 2 );
@@ -370,6 +371,35 @@ void TestQgsVectorLayer::testAddTopologicalPoints()
 
   QCOMPARE( layerLine->undoStack()->index(), 2 );
   QCOMPARE( layerLine->getFeature( fidLineF1 ).geometry().asWkt(), QgsGeometry::fromWkt( "LINESTRING(2 1, 1 1, 1 2, 1 3, 1 4, 1 5)" ).asWkt() );
+
+  delete layerLine;
+
+  layerLine = new QgsVectorLayer( u"LineString?crs=EPSG:27700"_s, u"layer line"_s, u"memory"_s );
+  QVERIFY( layerLine->isValid() );
+
+  lineF1.setGeometry( QgsGeometry::fromWkt( u"LineString Z ( 0 0 0, 10 10 10 )"_s ) );
+
+  layerLine->startEditing();
+  layerLine->addFeature( lineF1 );
+  fidLineF1 = lineF1.id();
+  QCOMPARE( layerLine->featureCount(), ( long ) 1 );
+
+  QCOMPARE( layerLine->undoStack()->index(), 1 );
+
+  // add point on segment of linestring
+  result = layerLine->addTopologicalPoints( QgsPoint( 2, 2 ) );
+  QCOMPARE( result, 0 );
+
+  QCOMPARE( layerLine->undoStack()->index(), 2 );
+  QCOMPARE( layerLine->getFeature( fidLineF1 ).geometry().asWkt(), QgsGeometry::fromWkt( "LINESTRING(0 0 0, 2 2 2, 10 10 10)" ).asWkt() );
+
+  // add point with Z on segment of linestring
+  layerLine->undoStack()->undo();
+  result = layerLine->addTopologicalPoints( QgsPoint( 2, 2, 42 ) );
+  QCOMPARE( result, 0 );
+
+  QCOMPARE( layerLine->undoStack()->index(), 2 );
+  QCOMPARE( layerLine->getFeature( fidLineF1 ).geometry().asWkt(), QgsGeometry::fromWkt( "LINESTRING(0 0 0, 2 2 2, 10 10 10)" ).asWkt() );
 
   delete layerLine;
 
@@ -519,11 +549,12 @@ void TestQgsVectorLayer::testAddFeatureExtentUpdated()
     QCOMPARE( layerLine->extent3D(), QgsBox3D( 1, 1, std::numeric_limits<double>::quiet_NaN(), 7, 12, std::numeric_limits<double>::quiet_NaN() ) );
   } );
 
-  connect( layerLine, &QgsVectorLayer::featureDeleted, this, [&layerLine, &lineF1]( const QgsFeatureId &fid ) {
-    QCOMPARE( fid, lineF1.id() );
-    QCOMPARE( layerLine->extent(), QgsRectangle() );
-    QCOMPARE( layerLine->extent3D(), QgsBox3D() );
-  }
+  connect(
+    layerLine, &QgsVectorLayer::featureDeleted, this, [&layerLine, &lineF1]( const QgsFeatureId &fid ) {
+      QCOMPARE( fid, lineF1.id() );
+      QCOMPARE( layerLine->extent(), QgsRectangle() );
+      QCOMPARE( layerLine->extent3D(), QgsBox3D() );
+    }
 
   );
 

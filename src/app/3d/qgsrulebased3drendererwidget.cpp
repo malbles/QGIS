@@ -75,13 +75,20 @@ void QgsRuleBased3DRendererWidget::setLayer( QgsVectorLayer *layer )
     QgsRuleBased3DRenderer *ruleRenderer = static_cast<QgsRuleBased3DRenderer *>( r );
     mRootRule.reset( ruleRenderer->rootRule()->clone() );
   }
-  else
+  else if ( QgsAbstractVectorLayer3DRenderer *vectorRenderer = dynamic_cast< QgsAbstractVectorLayer3DRenderer * >( r ) )
   {
-    // TODO: handle the special case when switching from single symbol renderer
+    std::unique_ptr< QgsRuleBased3DRenderer > newRenderer = QgsRuleBased3DRenderer::convertFromRenderer( vectorRenderer );
+    if ( newRenderer )
+    {
+      mRootRule.reset( newRenderer->rootRule()->clone() );
+    }
+  }
+  if ( !mRootRule )
+  {
     mRootRule = std::make_unique<QgsRuleBased3DRenderer::Rule>( nullptr );
   }
 
-  mModel.reset( new QgsRuleBased3DRendererModel( mRootRule.get() ) );
+  mModel = make_qobject_unique<QgsRuleBased3DRendererModel>( mRootRule.get() );
   viewRules->setModel( mModel );
 
   connect( mModel, &QAbstractItemModel::dataChanged, this, &QgsRuleBased3DRendererWidget::widgetChanged );
@@ -219,8 +226,7 @@ QgsRuleBased3DRenderer::Rule *QgsRuleBased3DRendererWidget::currentRule()
 QgsRuleBased3DRendererModel::QgsRuleBased3DRendererModel( QgsRuleBased3DRenderer::Rule *rootRule, QObject *parent )
   : QAbstractItemModel( parent )
   , mRootRule( rootRule )
-{
-}
+{}
 
 Qt::ItemFlags QgsRuleBased3DRendererModel::flags( const QModelIndex &index ) const
 {
@@ -588,7 +594,10 @@ Qgs3DRendererRulePropsWidget::Qgs3DRendererRulePropsWidget( QgsRuleBased3DRender
   connect( groupSymbol, &QGroupBox::toggled, this, &Qgs3DRendererRulePropsWidget::widgetChanged );
   connect( mSymbolWidget, &QgsSymbol3DWidget::widgetChanged, this, &Qgs3DRendererRulePropsWidget::widgetChanged );
   connect( mFilterRadio, &QRadioButton::toggled, this, [this]( bool toggled ) { filterFrame->setEnabled( toggled ); } );
-  connect( mElseRadio, &QRadioButton::toggled, this, [this]( bool toggled ) { if ( toggled ) editFilter->setText( u"ELSE"_s ); } );
+  connect( mElseRadio, &QRadioButton::toggled, this, [this]( bool toggled ) {
+    if ( toggled )
+      editFilter->setText( u"ELSE"_s );
+  } );
 }
 
 Qgs3DRendererRulePropsWidget::~Qgs3DRendererRulePropsWidget() = default;

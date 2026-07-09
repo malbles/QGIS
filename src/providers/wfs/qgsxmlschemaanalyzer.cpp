@@ -19,7 +19,6 @@
 #include "qgsxmlschemaanalyzer.h"
 
 #include <cpl_string.h>
-#include <gdal.h>
 #include <ogr_api.h>
 
 #include "qgsbackgroundcachedshareddata.h"
@@ -64,15 +63,16 @@ bool QgsXmlSchemaAnalyzer::readAttributesFromSchema(
   geometryMaybeMissing = false;
   metadataRetrievalCanceled = false;
   bool mayTryWithGMLAS = false;
-  bool ret = readAttributesFromSchemaWithoutGMLAS(
-    translatedProviderName, sharedData, schemaDoc, prefixedTypename,
-    geometryAttribute, fields, geomType, errorMsg, mayTryWithGMLAS
-  );
+  bool ret = readAttributesFromSchemaWithoutGMLAS( translatedProviderName, sharedData, schemaDoc, prefixedTypename, geometryAttribute, fields, geomType, errorMsg, mayTryWithGMLAS );
 
   // Only consider GMLAS / ComplexFeatures mode if FeatureMode=DEFAULT and there
   // is no edition capabilities, or if explicitly requested.
   // Cf https://github.com/qgis/QGIS/pull/61493
-  if ( ( ( sharedData->mURI.featureMode() == QgsWFSDataSourceURI::FeatureMode::Default && ( capabilities & Qgis::VectorProviderCapability::AddFeatures ) == 0 ) || sharedData->mURI.featureMode() == QgsWFSDataSourceURI::FeatureMode::ComplexFeatures ) && singleLayerContext && mayTryWithGMLAS && GDALGetDriverByName( "GMLAS" ) )
+  if ( ( ( sharedData->mURI.featureMode() == QgsWFSDataSourceURI::FeatureMode::Default && ( capabilities & Qgis::VectorProviderCapability::AddFeatures ) == 0 )
+         || sharedData->mURI.featureMode() == QgsWFSDataSourceURI::FeatureMode::ComplexFeatures )
+       && singleLayerContext
+       && mayTryWithGMLAS
+       && GDALGetDriverByName( "GMLAS" ) )
   {
     QString geometryAttributeGMLAS;
     QgsFields fieldsGMLAS;
@@ -98,11 +98,17 @@ static QMetaType::Type getVariantTypeFromXML( const QString &xmlType )
 {
   QMetaType::Type attributeType = QMetaType::Type::UnknownType;
 
-  const QString type = QString( xmlType )
-                         .replace( "xs:"_L1, QString() )
-                         .replace( "xsd:"_L1, QString() );
+  const QString type = QString( xmlType ).replace( "xs:"_L1, QString() ).replace( "xsd:"_L1, QString() );
 
-  if ( type.compare( "string"_L1, Qt::CaseInsensitive ) == 0 || type.compare( "token"_L1, Qt::CaseInsensitive ) == 0 || type.compare( "NMTOKEN"_L1, Qt::CaseInsensitive ) == 0 || type.compare( "NCName"_L1, Qt::CaseInsensitive ) == 0 || type.compare( "QName"_L1, Qt::CaseInsensitive ) == 0 || type.compare( "ID"_L1, Qt::CaseInsensitive ) == 0 || type.compare( "IDREF"_L1, Qt::CaseInsensitive ) == 0 || type.compare( "anyURI"_L1, Qt::CaseInsensitive ) == 0 || type.compare( "anySimpleType"_L1, Qt::CaseInsensitive ) == 0 )
+  if ( type.compare( "string"_L1, Qt::CaseInsensitive ) == 0
+       || type.compare( "token"_L1, Qt::CaseInsensitive ) == 0
+       || type.compare( "NMTOKEN"_L1, Qt::CaseInsensitive ) == 0
+       || type.compare( "NCName"_L1, Qt::CaseInsensitive ) == 0
+       || type.compare( "QName"_L1, Qt::CaseInsensitive ) == 0
+       || type.compare( "ID"_L1, Qt::CaseInsensitive ) == 0
+       || type.compare( "IDREF"_L1, Qt::CaseInsensitive ) == 0
+       || type.compare( "anyURI"_L1, Qt::CaseInsensitive ) == 0
+       || type.compare( "anySimpleType"_L1, Qt::CaseInsensitive ) == 0 )
   {
     attributeType = QMetaType::Type::QString;
   }
@@ -114,11 +120,20 @@ static QMetaType::Type getVariantTypeFromXML( const QString &xmlType )
   {
     attributeType = QMetaType::Type::Double;
   }
-  else if ( type.compare( "byte"_L1, Qt::CaseInsensitive ) == 0 || type.compare( "unsignedByte"_L1, Qt::CaseInsensitive ) == 0 || type.compare( "int"_L1, Qt::CaseInsensitive ) == 0 || type.compare( "short"_L1, Qt::CaseInsensitive ) == 0 || type.compare( "unsignedShort"_L1, Qt::CaseInsensitive ) == 0 )
+  else if ( type.compare( "byte"_L1, Qt::CaseInsensitive ) == 0
+            || type.compare( "unsignedByte"_L1, Qt::CaseInsensitive ) == 0
+            || type.compare( "int"_L1, Qt::CaseInsensitive ) == 0
+            || type.compare( "short"_L1, Qt::CaseInsensitive ) == 0
+            || type.compare( "unsignedShort"_L1, Qt::CaseInsensitive ) == 0 )
   {
     attributeType = QMetaType::Type::Int;
   }
-  else if ( type.compare( "long"_L1, Qt::CaseInsensitive ) == 0 || type.compare( "unsignedLong"_L1, Qt::CaseInsensitive ) == 0 || type.compare( "integer"_L1, Qt::CaseInsensitive ) == 0 || type.compare( "negativeInteger"_L1, Qt::CaseInsensitive ) == 0 || type.compare( "nonNegativeInteger"_L1, Qt::CaseInsensitive ) == 0 || type.compare( "positiveInteger"_L1, Qt::CaseInsensitive ) == 0 )
+  else if ( type.compare( "long"_L1, Qt::CaseInsensitive ) == 0
+            || type.compare( "unsignedLong"_L1, Qt::CaseInsensitive ) == 0
+            || type.compare( "integer"_L1, Qt::CaseInsensitive ) == 0
+            || type.compare( "negativeInteger"_L1, Qt::CaseInsensitive ) == 0
+            || type.compare( "nonNegativeInteger"_L1, Qt::CaseInsensitive ) == 0
+            || type.compare( "positiveInteger"_L1, Qt::CaseInsensitive ) == 0 )
   {
     attributeType = QMetaType::Type::LongLong;
   }
@@ -143,9 +158,7 @@ struct QgsXmlSchemaAnalyzerGMLASErrorHandlerUserData
     QString translatedProviderName;
 };
 
-static void CPL_STDCALL QgsXmlSchemaAnalyzerGMLASErrorHandler(
-  CPLErr eErr, CPLErrorNum /*eErrorNum*/, const char *pszErrorMsg
-)
+static void CPL_STDCALL QgsXmlSchemaAnalyzerGMLASErrorHandler( CPLErr eErr, CPLErrorNum /*eErrorNum*/, const char *pszErrorMsg )
 {
   // Silence harmless warnings like "GeographicalName_pronunciation_PronunciationOfName_pronunciationSoundLink_nilReason identifier truncated to geographicalname_pronunciation_pronunciationofname_pronunciatio"
   if ( !( eErr == CE_Warning && strstr( pszErrorMsg, " truncated to " ) ) )
@@ -234,6 +247,7 @@ bool QgsXmlSchemaAnalyzer::readAttributesFromSchemaWithGMLAS(
 
     QgsSettings settings;
     QString cacheDirectory = settings.value( u"cache/directory"_s ).toString();
+    qDebug() << "------------------ " << cacheDirectory << " -------------------------------";
     if ( cacheDirectory.isEmpty() )
       cacheDirectory = QStandardPaths::writableLocation( QStandardPaths::CacheLocation );
     if ( !cacheDirectory.endsWith( QDir::separator() ) )
@@ -242,44 +256,48 @@ bool QgsXmlSchemaAnalyzer::readAttributesFromSchemaWithGMLAS(
     }
     // Must be kept in sync with QgsOptions::clearCache()
     cacheDirectory += "gmlas_xsd_cache"_L1;
+    qDebug() << "------------------ " << cacheDirectory << " -------------------------------";
     QgsDebugMsgLevel( u"cacheDirectory = %1"_s.arg( cacheDirectory ), 4 );
     char *pszEscaped = CPLEscapeString( cacheDirectory.toStdString().c_str(), -1, CPLES_XML );
-    QString config = QStringLiteral( "<Configuration><SchemaCache><Directory>%1</Directory></SchemaCache>"
-                                     "<IgnoredXPaths>"
-                                     "    <WarnIfIgnoredXPathFoundInDocInstance>true</WarnIfIgnoredXPathFoundInDocInstance>"
-                                     "    <Namespaces>"
-                                     "        <Namespace prefix=\"gml\" uri=\"http://www.opengis.net/gml\"/>"
-                                     "        <Namespace prefix=\"gml32\" uri=\"http://www.opengis.net/gml/3.2\"/>"
-                                     "        <Namespace prefix=\"swe\" uri=\"http://www.opengis.net/swe/2.0\"/>"
-                                     "    </Namespaces>"
-                                     "    <XPath warnIfIgnoredXPathFoundInDocInstance=\"false\">gml:boundedBy</XPath>"
-                                     "    <XPath warnIfIgnoredXPathFoundInDocInstance=\"false\">gml32:boundedBy</XPath>"
-                                     "    <XPath>gml:priorityLocation</XPath>"
-                                     "    <XPath>gml32:priorityLocation</XPath>"
-                                     "    <XPath>gml32:descriptionReference/@owns</XPath>"
-                                     "    <XPath>@xlink:show</XPath>"
-                                     "    <XPath>@xlink:type</XPath>"
-                                     "    <XPath>@xlink:role</XPath>"
-                                     "    <XPath>@xlink:arcrole</XPath>"
-                                     "    <XPath>@xlink:actuate</XPath>"
-                                     "    <XPath>@gml:remoteSchema</XPath>"
-                                     "    <XPath>@gml32:remoteSchema</XPath>"
-                                     "    <XPath>swe:Quantity/swe:extension</XPath>"
-                                     "    <XPath>swe:Quantity/@referenceFrame</XPath>"
-                                     "    <XPath>swe:Quantity/@axisID</XPath>"
-                                     "    <XPath>swe:Quantity/@updatable</XPath>"
-                                     "    <XPath>swe:Quantity/@optional</XPath>"
-                                     "    <XPath>swe:Quantity/@id</XPath>"
-                                     "    <XPath>swe:Quantity/swe:identifier</XPath>"
-                                     "    <!-- <XPath>swe:Quantity/@definition</XPath> -->"
-                                     "    <XPath>swe:Quantity/swe:label</XPath>"
-                                     "    <XPath>swe:Quantity/swe:nilValues</XPath>"
-                                     "    <XPath>swe:Quantity/swe:constraint</XPath>"
-                                     "    <XPath>swe:Quantity/swe:quality</XPath>"
-                                     "</IgnoredXPaths>"
-                                     "</Configuration>" )
+    QString config = QStringLiteral(
+                       "<Configuration><SchemaCache><Directory>%1</Directory></SchemaCache>"
+                       "<IgnoredXPaths>"
+                       "    <WarnIfIgnoredXPathFoundInDocInstance>true</WarnIfIgnoredXPathFoundInDocInstance>"
+                       "    <Namespaces>"
+                       "        <Namespace prefix=\"gml\" uri=\"http://www.opengis.net/gml\"/>"
+                       "        <Namespace prefix=\"gml32\" uri=\"http://www.opengis.net/gml/3.2\"/>"
+                       "        <Namespace prefix=\"swe\" uri=\"http://www.opengis.net/swe/2.0\"/>"
+                       "    </Namespaces>"
+                       "    <XPath warnIfIgnoredXPathFoundInDocInstance=\"false\">gml:boundedBy</XPath>"
+                       "    <XPath warnIfIgnoredXPathFoundInDocInstance=\"false\">gml32:boundedBy</XPath>"
+                       "    <XPath>gml:priorityLocation</XPath>"
+                       "    <XPath>gml32:priorityLocation</XPath>"
+                       "    <XPath>gml32:descriptionReference/@owns</XPath>"
+                       "    <XPath>@xlink:show</XPath>"
+                       "    <XPath>@xlink:type</XPath>"
+                       "    <XPath>@xlink:role</XPath>"
+                       "    <XPath>@xlink:arcrole</XPath>"
+                       "    <XPath>@xlink:actuate</XPath>"
+                       "    <XPath>@gml:remoteSchema</XPath>"
+                       "    <XPath>@gml32:remoteSchema</XPath>"
+                       "    <XPath>swe:Quantity/swe:extension</XPath>"
+                       "    <XPath>swe:Quantity/@referenceFrame</XPath>"
+                       "    <XPath>swe:Quantity/@axisID</XPath>"
+                       "    <XPath>swe:Quantity/@updatable</XPath>"
+                       "    <XPath>swe:Quantity/@optional</XPath>"
+                       "    <XPath>swe:Quantity/@id</XPath>"
+                       "    <XPath>swe:Quantity/swe:identifier</XPath>"
+                       "    <!-- <XPath>swe:Quantity/@definition</XPath> -->"
+                       "    <XPath>swe:Quantity/swe:label</XPath>"
+                       "    <XPath>swe:Quantity/swe:nilValues</XPath>"
+                       "    <XPath>swe:Quantity/swe:constraint</XPath>"
+                       "    <XPath>swe:Quantity/swe:quality</XPath>"
+                       "</IgnoredXPaths>"
+                       "</Configuration>"
+    )
                        .arg( pszEscaped );
     CPLFree( pszEscaped );
+    qDebug() << "konfig:::::: " << config << " war die konfig";
     papszOpenOptions = CSLSetNameValue( papszOpenOptions, "CONFIG_FILE", config.toStdString().c_str() );
 
     QgsXmlSchemaAnalyzerGMLASErrorHandlerUserData userData;
@@ -319,11 +337,7 @@ bool QgsXmlSchemaAnalyzer::readAttributesFromSchemaWithGMLAS(
   {
     // Display an information box if within 2 seconds, the schema has not
     // been analyzed.
-    box = new QMessageBox(
-      QMessageBox::Information, QObject::tr( "Information" ), QObject::tr( "Download of XML schemas to which the WFS refers in progress..." ),
-      QMessageBox::Cancel,
-      parentWidget
-    );
+    box = new QMessageBox( QMessageBox::Information, QObject::tr( "Information" ), QObject::tr( "Download of XML schemas to which the WFS refers in progress..." ), QMessageBox::Cancel, parentWidget );
 #if GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION( 3, 9, 0 )
     QObject::connect( box, &QDialog::rejected, &feedback, &QgsFeedback::cancel );
 #else
@@ -412,18 +426,12 @@ bool QgsXmlSchemaAnalyzer::readAttributesFromSchemaWithGMLAS(
   std::map<int, QPair<QString, QString>> mapPrefixIdxToPrefixAndUri;
   while ( true )
   {
-    gdal::ogr_feature_unique_ptr hFeatureOtherMD(
-      OGR_L_GetNextFeature( hOtherMetadataLayer )
-    );
+    gdal::ogr_feature_unique_ptr hFeatureOtherMD( OGR_L_GetNextFeature( hOtherMetadataLayer ) );
     if ( !hFeatureOtherMD )
       break;
 
-    const QString key = QString::fromUtf8(
-      OGR_F_GetFieldAsString( hFeatureOtherMD.get(), keyIdx )
-    );
-    const QString value = QString::fromUtf8(
-      OGR_F_GetFieldAsString( hFeatureOtherMD.get(), valueIdx )
-    );
+    const QString key = QString::fromUtf8( OGR_F_GetFieldAsString( hFeatureOtherMD.get(), keyIdx ) );
+    const QString value = QString::fromUtf8( OGR_F_GetFieldAsString( hFeatureOtherMD.get(), valueIdx ) );
 
     if ( key.startsWith( "namespace_prefix_"_L1 ) )
     {
@@ -462,9 +470,7 @@ bool QgsXmlSchemaAnalyzer::readAttributesFromSchemaWithGMLAS(
   }
   if ( !hFeatureLayersMD )
   {
-    QgsDebugMsgLevel(
-      u"Cannot find feature with layer_xpath = %1 in _ogr_layers_metadata"_s.arg( prefixedTypename ), 4
-    );
+    QgsDebugMsgLevel( u"Cannot find feature with layer_xpath = %1 in _ogr_layers_metadata"_s.arg( prefixedTypename ), 4 );
     return false;
   }
   const int fldIdx = OGR_F_GetFieldIndex( hFeatureLayersMD.get(), "layer_name" );
@@ -474,13 +480,9 @@ bool QgsXmlSchemaAnalyzer::readAttributesFromSchemaWithGMLAS(
     QgsDebugMsgLevel( u"Cannot find layer_name field in _ogr_layers_metadata"_s, 4 );
     return false;
   }
-  const QString layerName = QString::fromUtf8(
-    OGR_F_GetFieldAsString( hFeatureLayersMD.get(), fldIdx )
-  );
+  const QString layerName = QString::fromUtf8( OGR_F_GetFieldAsString( hFeatureLayersMD.get(), fldIdx ) );
 
-  OGRLayerH hLayer = GDALDatasetGetLayerByName(
-    hDS, layerName.toStdString().c_str()
-  );
+  OGRLayerH hLayer = GDALDatasetGetLayerByName( hDS, layerName.toStdString().c_str() );
   if ( !hLayer )
   {
     // should not happen
@@ -572,16 +574,12 @@ bool QgsXmlSchemaAnalyzer::readAttributesFromSchemaWithGMLAS(
       fieldName.resize( fieldName.size() - int( strlen( "_pkid" ) ) );
     }
 
-    QgsDebugMsgLevel(
-      u"field %1: xpath=%2 is_list=%3 type=%4 category=%5"_s.arg( fieldName ).arg( fieldXPath ).arg( fieldIsList ).arg( fieldType ).arg( fieldCategory ), 5
-    );
+    QgsDebugMsgLevel( u"field %1: xpath=%2 is_list=%3 type=%4 category=%5"_s.arg( fieldName ).arg( fieldXPath ).arg( fieldIsList ).arg( fieldType ).arg( fieldCategory ), 5 );
     if ( EQUAL( fieldCategory, "REGULAR" ) && ( EQUAL( fieldType, "geometry" ) || fieldName.endsWith( "_abstractgeometricprimitive"_L1 ) ) )
     {
       if ( geometryAttribute.isEmpty() )
       {
-        geomType = QgsOgrUtils::ogrGeometryTypeToQgsWkbType(
-          OGR_L_GetGeomType( hLayer )
-        );
+        geomType = QgsOgrUtils::ogrGeometryTypeToQgsWkbType( OGR_L_GetGeomType( hLayer ) );
         if ( geomType != Qgis::WkbType::Point )
           geomType = QgsWkbTypes::multiType( geomType );
 
@@ -639,9 +637,7 @@ bool QgsXmlSchemaAnalyzer::readAttributesFromSchemaWithGMLAS(
       else
       {
         // unhandled:duration, base64Binary, hexBinary, anyType
-        QgsDebugMsgLevel(
-          u"unhandled type for field %1: xpath=%2 is_list=%3 type=%4 category=%5"_s.arg( fieldName ).arg( fieldXPath ).arg( fieldIsList ).arg( fieldType ).arg( fieldCategory ), 3
-        );
+        QgsDebugMsgLevel( u"unhandled type for field %1: xpath=%2 is_list=%3 type=%4 category=%5"_s.arg( fieldName ).arg( fieldXPath ).arg( fieldIsList ).arg( fieldType ).arg( fieldCategory ), 3 );
         fields.append( QgsField( fieldName, QMetaType::Type::QString, fieldType ) );
       }
       sharedData->mFieldNameToXPathAndIsNestedContentMap[fieldName] = QPair<QString, bool>( fieldXPath, false );
@@ -654,7 +650,19 @@ bool QgsXmlSchemaAnalyzer::readAttributesFromSchemaWithGMLAS(
       sharedData->mFieldNameToXPathAndIsNestedContentMap[fieldName] = QPair<QString, bool>( fieldXPath, true );
     }
   }
+  if ( geometryAttribute.isEmpty() )
+  {
+    // When we have not found any geometry field in this layer, we check for geometries in referencing layers.
+    QList<QPair<QString, Qgis::WkbType>> geomInfoList = geometryInfoFromReferencingLayers( hDS, layerName );
 
+    if ( !geomInfoList.isEmpty() )
+    {
+      // We pick the first geometry found, even if multiple related features contain geometries and even if they contain multiple geometries.
+      // This supports MappedFeatures of GeoSciML now and could be extended in the future.
+      geometryAttribute = geomInfoList.first().first;
+      geomType = geomInfoList.first().second;
+    }
+  }
   return true;
 }
 
@@ -912,9 +920,16 @@ bool QgsXmlSchemaAnalyzer::readAttributesFromSchemaWithoutGMLAS(
       }
       else
       {
+        errorMsg = QObject::tr( "Found attribute '%1' of unknown type" ).arg( name );
         mayTryWithGMLAS = true;
         fields.append( QgsField( name, QMetaType::Type::QString, type ) );
       }
+    }
+    else if ( !ref.isEmpty() )
+    {
+      // We don't have a name, but a ref and it didn't match yet on any geometry pattern
+      errorMsg = QObject::tr( "Found unresolved ref '%1'" ).arg( ref );
+      mayTryWithGMLAS = true;
     }
   }
   if ( !foundGeometryAttribute )
@@ -923,4 +938,41 @@ bool QgsXmlSchemaAnalyzer::readAttributesFromSchemaWithoutGMLAS(
   }
 
   return true;
+}
+
+QList<QPair<QString, Qgis::WkbType>> QgsXmlSchemaAnalyzer::geometryInfoFromReferencingLayers( GDALDatasetH dataset, const QString &layerName )
+{
+  // We go one level deep by checking all layers in the dataset for foreign keys to the current layer.
+  QList<QPair<QString, Qgis::WkbType>> geometryInfoFromReferencingLayers;
+  // We create the pattern for the PKs. An alternate approach would be to get the layers by
+  // reading features of https://gdal.org/en/stable/drivers/vector/gmlas_metadata_layers.html#ogr-layer-relationships-layer
+  const QString fkNamePartToCurrentLayer = u"_%1_pkid"_s.arg( layerName.toLower() );
+  int nLayerCount = GDALDatasetGetLayerCount( dataset );
+  for ( int i = 0; i < nLayerCount; i++ )
+  {
+    OGRLayerH hLayer = GDALDatasetGetLayer( dataset, i );
+    if ( !hLayer )
+      continue;
+
+    OGRFeatureDefnH hDefn = OGR_L_GetLayerDefn( hLayer );
+    int nFieldCount = OGR_FD_GetFieldCount( hDefn );
+    for ( int j = 0; j < nFieldCount; j++ )
+    {
+      OGRFieldDefnH hFieldDefn = OGR_FD_GetFieldDefn( hDefn, j );
+      if ( QString::fromUtf8( OGR_Fld_GetNameRef( hFieldDefn ) ).endsWith( fkNamePartToCurrentLayer ) )
+      {
+        QString geometryAttribute = OGR_L_GetGeometryColumn( hLayer );
+        // Check if we found a geometry and it's not an abstract geometry
+        if ( !geometryAttribute.isEmpty() && geometryAttribute != "abstractgeometry"_L1 )
+        {
+          Qgis::WkbType geomType = QgsOgrUtils::ogrGeometryTypeToQgsWkbType( OGR_L_GetGeomType( hLayer ) );
+          // Always create a multitype because multiple referencing features might be possible
+          geomType = QgsWkbTypes::multiType( geomType );
+          geometryInfoFromReferencingLayers.append( { geometryAttribute, geomType } );
+        }
+        break;
+      }
+    }
+  }
+  return geometryInfoFromReferencingLayers;
 }

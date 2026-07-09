@@ -17,7 +17,7 @@
 
 #include <memory>
 
-#include "qgs3dmapcanvas.h"
+#include "qgs3dmapcanvaswidget.h"
 #include "qgs3dmapscene.h"
 #include "qgs3dmeasuredialog.h"
 #include "qgs3dutils.h"
@@ -28,6 +28,8 @@
 #include "qgspoint.h"
 #include "qgsraycastcontext.h"
 #include "qgsrubberband3d.h"
+#include "qgssettingsentryimpl.h"
+#include "qgssettingsregistrygui.h"
 #include "qgswindow3dengine.h"
 
 #include <QKeyEvent>
@@ -37,11 +39,11 @@
 
 using namespace Qt::StringLiterals;
 
-Qgs3DMapToolMeasureLine::Qgs3DMapToolMeasureLine( Qgs3DMapCanvas *canvas )
-  : Qgs3DMapTool( canvas )
+Qgs3DMapToolMeasureLine::Qgs3DMapToolMeasureLine( Qgs3DMapCanvasWidget *canvasWidget )
+  : Qgs3DMapTool( canvasWidget->mapCanvas3D() )
 {
   // Dialog
-  mDialog = std::make_unique<Qgs3DMeasureDialog>( this );
+  mDialog = make_qobject_unique<Qgs3DMeasureDialog>( this, canvasWidget );
   mDialog->setWindowFlags( mDialog->windowFlags() | Qt::Tool );
   mDialog->restorePosition();
 }
@@ -109,13 +111,8 @@ void Qgs3DMapToolMeasureLine::updateSettings()
 {
   if ( mRubberBand )
   {
-    const QgsSettings settings;
-    const int myRed = settings.value( u"qgis/default_measure_color_red"_s, 222 ).toInt();
-    const int myGreen = settings.value( u"qgis/default_measure_color_green"_s, 155 ).toInt();
-    const int myBlue = settings.value( u"qgis/default_measure_color_blue"_s, 67 ).toInt();
-
     mRubberBand->setWidth( 3 );
-    mRubberBand->setColor( QColor( myRed, myGreen, myBlue ) );
+    mRubberBand->setColor( QgsSettingsRegistryGui::settingsDefaultMeasureColor->value() );
   }
 }
 
@@ -150,8 +147,11 @@ void Qgs3DMapToolMeasureLine::restart()
   mDone = false;
   mDialog->resetTable();
 
-  mRubberBand->reset();
-  mRubberBand->setHideLastMarker( true );
+  if ( mRubberBand )
+  {
+    mRubberBand->reset();
+    mRubberBand->setHideLastMarker( true );
+  }
 }
 
 void Qgs3DMapToolMeasureLine::undo()

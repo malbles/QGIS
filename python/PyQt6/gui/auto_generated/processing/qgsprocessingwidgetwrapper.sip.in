@@ -298,7 +298,9 @@ they are constructed through the central registry, via calls to
 #include "qgsprocessingwidgetwrapper.h"
 %End
   public:
-    QgsAbstractProcessingParameterWidgetWrapper( const QgsProcessingParameterDefinition *parameter = 0, Qgis::ProcessingMode type = Qgis::ProcessingMode::Standard, QObject *parent /TransferThis/ = 0 );
+    QgsAbstractProcessingParameterWidgetWrapper(
+      const QgsProcessingParameterDefinition *parameter = 0, Qgis::ProcessingMode type = Qgis::ProcessingMode::Standard, QObject *parent /TransferThis/ = 0
+    );
 %Docstring
 Constructor for QgsAbstractProcessingParameterWidgetWrapper, for the
 specified ``parameter`` definition and dialog ``type``.
@@ -443,9 +445,9 @@ The default implementation returns 0.
     virtual QgsExpressionContext createExpressionContext() const;
 
 
-    virtual void setDialog( QDialog *dialog );
+    virtual void setDialog( QWidget *dialog );
 %Docstring
-Sets the parent ``dialog`` in which the wrapper is shown.
+Sets the parent ``dialog`` (or widget) in which the wrapper is shown.
 
 .. versionadded:: 3.8
 %End
@@ -552,7 +554,9 @@ The ``type`` argument indicates the dialog type to create a wrapper for.
 .. seealso:: :py:func:`createModelerWidgetWrapper`
 %End
 
-    virtual QgsProcessingModelerParameterWidget *createModelerWidgetWrapper( QgsProcessingModelAlgorithm *model, const QString &childId, const QgsProcessingParameterDefinition *parameter, QgsProcessingContext &context );
+    virtual QgsProcessingModelerParameterWidget *createModelerWidgetWrapper(
+      QgsProcessingModelAlgorithm *model, const QString &childId, const QgsProcessingParameterDefinition *parameter, QgsProcessingContext &context
+    );
 %Docstring
 Creates a new modeler parameter widget for the given ``parameter``. This
 widget allows configuration of the parameter's value when used inside a
@@ -572,10 +576,7 @@ must last for the lifetime of the widget.
 %End
 
     virtual QgsProcessingAbstractParameterDefinitionWidget *createParameterDefinitionWidget(
-      QgsProcessingContext &context,
-      const QgsProcessingParameterWidgetContext &widgetContext,
-      const QgsProcessingParameterDefinition *definition = 0,
-      const QgsProcessingAlgorithm *algorithm = 0
+      QgsProcessingContext &context, const QgsProcessingParameterWidgetContext &widgetContext, const QgsProcessingParameterDefinition *definition = 0, const QgsProcessingAlgorithm *algorithm = 0
     ) /Factory/;
 %Docstring
 Creates a new parameter definition widget allowing for configuration of

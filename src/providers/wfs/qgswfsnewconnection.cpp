@@ -20,6 +20,7 @@
 
 #include "qgslogger.h"
 #include "qgsmessagelog.h"
+#include "qgsoapifutils.h"
 #include "qgsowsconnection.h"
 #include "qgswfsguiutils.h"
 
@@ -35,7 +36,7 @@ static QString translatedImageFormatFromMediaType( const QString &type )
 {
   static QMap<QString, QString> mapMimeTypeToTranslated {
     { u"default"_s, QObject::tr( "Default" ) },
-    { u"application/fg+json"_s, QObject::tr( "JSON-FG" ) },
+    { PSEUDO_JSONFG_MEDIA_TYPE, QObject::tr( "JSON-FG" ) },
     { u"application/flatgeobuf"_s, QObject::tr( "FlatGeoBuf" ) },
     { u"application/geo+json"_s, QObject::tr( "GeoJSON" ) },
     { u"application/gml+xml"_s, QObject::tr( "GML" ) },
@@ -128,7 +129,8 @@ QgsDataSourceUri QgsWFSNewConnection::createUri()
 
 void QgsWFSNewConnection::versionDetectButton()
 {
-  startCapabilitiesRequest();
+  mDetectVersionInProgress = true;
+  startOapifLandingPageRequest();
 }
 
 void QgsWFSNewConnection::startCapabilitiesRequest()
@@ -163,10 +165,25 @@ void QgsWFSNewConnection::capabilitiesReplyFinished()
   const auto err = mCapabilities->errorCode();
   if ( err != QgsBaseNetworkRequest::NoError )
   {
-    startOapifLandingPageRequest();
+    if ( err == QgsBaseNetworkRequest::ApplicationLevelError )
+    {
+      QgsMessageLog::logMessage( mCapabilities->errorMessage(), tr( "WFS" ) );
+      QgsWfsGuiUtils::displayErrorMessageOnFailedCapabilities( mCapabilities.get(), this );
+    }
+    else if ( mOAPIFLandingPage )
+    {
+      QMessageBox *box = new QMessageBox( QMessageBox::Critical, QObject::tr( "Invalid response" ), mOAPIFLandingPage->errorMessage(), QMessageBox::Ok, this );
+      box->setAttribute( Qt::WA_DeleteOnClose );
+      box->setModal( true );
+      box->open();
+    }
+    mCapabilities.reset();
+    mOAPIFLandingPage.reset();
+    mDetectVersionInProgress = false;
     return;
   }
 
+  mDetectVersionInProgress = false;
   mDetectFormatInProgress = false;
 
   const QgsWfsCapabilities &caps = mCapabilities->capabilities();
@@ -187,9 +204,7 @@ void QgsWFSNewConnection::capabilitiesReplyFinished()
   }
   wfsVersionComboBox()->setCurrentIndex( versionIdx );
 
-  wfsPagingComboBox()->setCurrentIndex(
-    static_cast<int>( caps.supportsPaging ? QgsNewHttpConnection::WfsFeaturePagingIndex::ENABLED : QgsNewHttpConnection::WfsFeaturePagingIndex::DISABLED )
-  );
+  wfsPagingComboBox()->setCurrentIndex( static_cast<int>( caps.supportsPaging ? QgsNewHttpConnection::WfsFeaturePagingIndex::ENABLED : QgsNewHttpConnection::WfsFeaturePagingIndex::DISABLED ) );
 
   mCapabilities.reset();
 }
@@ -224,24 +239,11 @@ void QgsWFSNewConnection::oapifLandingPageReplyFinished()
 
   if ( mOAPIFLandingPage->errorCode() != QgsBaseNetworkRequest::NoError )
   {
-    if ( mOAPIFLandingPage->errorCode() == QgsBaseNetworkRequest::ApplicationLevelError )
-    {
-      QMessageBox *box = new QMessageBox( QMessageBox::Critical, QObject::tr( "Invalid response" ), mOAPIFLandingPage->errorMessage(), QMessageBox::Ok, this );
-      box->setAttribute( Qt::WA_DeleteOnClose );
-      box->setModal( true );
-      box->open();
-    }
-    else if ( mCapabilities )
-    {
-      QgsMessageLog::logMessage( mCapabilities->errorMessage(), tr( "WFS" ) );
-      QgsWfsGuiUtils::displayErrorMessageOnFailedCapabilities( mCapabilities.get(), this );
-    }
-    mDetectFormatInProgress = false;
-    mCapabilities.reset();
-    mOAPIFLandingPage.reset();
+    startCapabilitiesRequest();
     return;
   }
 
+  mDetectVersionInProgress = false;
   mOAPIFApiUrl = mOAPIFLandingPage->apiUrl();
   mOAPIFCollectionsUrl = mOAPIFLandingPage->collectionsUrl();
   mOAPIFLandingPage.reset();
@@ -290,7 +292,7 @@ void QgsWFSNewConnection::oapifApiReplyFinished()
 
   QApplication::restoreOverrideCursor();
 
-  if ( mOAPIFApi->errorCode() != QgsBaseNetworkRequest::NoError )
+  if ( mOAPIFApi->errorCode() != QgsBaseNetworkRequest::NoError && !mDetectVersionInProgress )
   {
     QMessageBox *box = new QMessageBox( QMessageBox::Critical, QObject::tr( "Invalid response" ), mOAPIFApi->errorMessage(), QMessageBox::Ok, this );
     box->setAttribute( Qt::WA_DeleteOnClose );
@@ -298,8 +300,11 @@ void QgsWFSNewConnection::oapifApiReplyFinished()
     box->open();
 
     mOAPIFApi.reset();
+    mDetectVersionInProgress = false;
     return;
   }
+
+  mDetectVersionInProgress = false;
 
   wfsPageSizeLineEdit()->clear();
   if ( mOAPIFApi->defaultLimit() > 0 && mOAPIFApi->maxLimit() > 0 )
@@ -343,16 +348,19 @@ void QgsWFSNewConnection::oapifCollectionsReplyFinished()
 
   QApplication::restoreOverrideCursor();
 
-  if ( mOAPIFCollectionsRequest->errorCode() != QgsBaseNetworkRequest::NoError )
+  if ( mOAPIFCollectionsRequest->errorCode() != QgsBaseNetworkRequest::NoError && !mDetectVersionInProgress )
   {
     QMessageBox *box = new QMessageBox( QMessageBox::Critical, QObject::tr( "Invalid response" ), mOAPIFCollectionsRequest->errorMessage(), QMessageBox::Ok, this );
     box->setAttribute( Qt::WA_DeleteOnClose );
     box->setModal( true );
     box->open();
 
+    mDetectVersionInProgress = false;
     mOAPIFCollectionsRequest.reset();
     return;
   }
+
+  mDetectVersionInProgress = false;
 
   const QStringList detailsParameters = { u"wfs"_s, originalConnectionName() };
 

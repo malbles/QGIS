@@ -55,6 +55,8 @@ class QGraphicsScene;
 class QgsMapToPixel;
 class QgsMapLayer;
 class QgsHighlight;
+class QgsSettingsEntryString;
+class QgsSettingsEntryBool;
 class QgsVectorLayer;
 
 class QgsLabelingResults;
@@ -65,6 +67,7 @@ class QgsMapSettings;
 class QgsMapCanvasMap;
 class QgsMapOverviewCanvas;
 class QgsMapTool;
+class QgsMessageBar;
 class QgsSnappingUtils;
 class QgsRubberBand;
 class QgsMapCanvasAnnotationItem;
@@ -73,6 +76,7 @@ class QgsRenderedItemResults;
 class QgsTemporaryCursorOverride;
 class QgsOverlayWidgetLayout;
 class QgsStatusBar;
+class QgsUserInputWidget;
 
 class QgsTemporalController;
 class QgsScreenHelper;
@@ -104,6 +108,9 @@ class GUI_EXPORT QgsMapCanvas : public QGraphicsView, public QgsExpressionContex
     Q_PROPERTY( bool previewJobsEnabled READ previewJobsEnabled WRITE setPreviewJobsEnabled )
 
   public:
+    static const QgsSettingsEntryBool *settingsMainCanvasPreviewJobs SIP_SKIP;
+    static const QgsSettingsEntryBool *settingsEnableRenderCaching SIP_SKIP;
+
     //! Constructor
     QgsMapCanvas( QWidget *parent SIP_TRANSFERTHIS = nullptr );
 
@@ -423,7 +430,9 @@ class GUI_EXPORT QgsMapCanvas : public QGraphicsView, public QgsExpressionContex
      *
      * \see flashGeometries()
      */
-    void flashFeatureIds( QgsVectorLayer *layer, const QgsFeatureIds &ids, const QColor &startColor = QColor( 255, 0, 0, 255 ), const QColor &endColor = QColor( 255, 0, 0, 0 ), int flashes = 3, int duration = 500 );
+    void flashFeatureIds(
+      QgsVectorLayer *layer, const QgsFeatureIds &ids, const QColor &startColor = QColor( 255, 0, 0, 255 ), const QColor &endColor = QColor( 255, 0, 0, 0 ), int flashes = 3, int duration = 500
+    );
 
     /**
      * Causes a set of \a geometries to flash within the canvas.
@@ -436,7 +445,14 @@ class GUI_EXPORT QgsMapCanvas : public QGraphicsView, public QgsExpressionContex
      *
      * \see flashFeatureIds()
      */
-    void flashGeometries( const QList<QgsGeometry> &geometries, const QgsCoordinateReferenceSystem &crs = QgsCoordinateReferenceSystem(), const QColor &startColor = QColor( 255, 0, 0, 255 ), const QColor &endColor = QColor( 255, 0, 0, 0 ), int flashes = 3, int duration = 500 );
+    void flashGeometries(
+      const QList<QgsGeometry> &geometries,
+      const QgsCoordinateReferenceSystem &crs = QgsCoordinateReferenceSystem(),
+      const QColor &startColor = QColor( 255, 0, 0, 255 ),
+      const QColor &endColor = QColor( 255, 0, 0, 0 ),
+      int flashes = 3,
+      int duration = 500
+    );
 
     //! Sets the map tool currently being used on the canvas
     void setMapTool( QgsMapTool *mapTool, bool clean = false );
@@ -523,8 +539,7 @@ class GUI_EXPORT QgsMapCanvas : public QGraphicsView, public QgsExpressionContex
      * \note not available in Python bindings
      * \since QGIS 3.40
      */
-    template<typename T>
-    QVector<T> layers() const { return mapSettings().layers<T>(); }
+    template<typename T> QVector<T> layers() const { return mapSettings().layers<T>(); }
 #endif
 
     /**
@@ -768,10 +783,7 @@ class GUI_EXPORT QgsMapCanvas : public QGraphicsView, public QgsExpressionContex
      * \see defaultExpressionContextScope()
      * \note not available in Python bindings
      */
-    const QgsExpressionContextScope &expressionContextScope() const SIP_SKIP
-    {
-      return mExpressionContextScope;
-    }
+    const QgsExpressionContextScope &expressionContextScope() const SIP_SKIP { return mExpressionContextScope; }
 
     /**
      * Creates a new scope which contains default variables and functions relating to the map canvas.
@@ -930,6 +942,50 @@ class GUI_EXPORT QgsMapCanvas : public QGraphicsView, public QgsExpressionContex
      */
     void setStatusBar( QgsStatusBar *bar );
 
+    /**
+     * Sets a message \a bar to use alongside the map canvas.
+     *
+     * Setting this allows items to utilize the message bar to provide non-blocking feedback to users, e.g.
+     * success or failure of actions.
+     *
+     * \see messageBar()
+     * \since QGIS 4.2
+     */
+    void setMessageBar( QgsMessageBar *bar );
+
+    /**
+     * Returns the message bar associated with the map canvas.
+     *
+     * May be NULLPTR if not set.
+     *
+     * \see setMessageBar()
+     * \since QGIS 4.2
+     */
+    QgsMessageBar *messageBar();
+
+    /**
+     * Sets a \a userInputWidget, a floating widget that can be used to display additional widgets for user inputs.
+     *
+     * Setting this allows items associated with a map canvas to add widgets to it, e.g. in a QgsMapTool.
+     *
+     * \see userInputWidget()
+     * \since QGIS 4.2
+     */
+    void setUserInputWidget( QgsUserInputWidget *userInputWidget );
+
+
+    /**
+     * Returns the user input widget associated with the map canvas.
+     *
+     * May be NULLPTR if not set.
+     *
+     * \see setUserInputWidget()
+     * \since QGIS 4.2
+     */
+    QgsUserInputWidget *userInputWidget();
+
+    static const QgsSettingsEntryString *settingsCustomCoordinateCrs SIP_SKIP;
+
   public slots:
 
     //! Repaints the canvas map
@@ -1019,6 +1075,12 @@ class GUI_EXPORT QgsMapCanvas : public QGraphicsView, public QgsExpressionContex
      * \since QGIS 3.18
      */
     void zoomToSelected( const QList<QgsMapLayer *> &layers );
+
+    /**
+     * Zoom to the combined extent of a set of \a layers.
+     * \since QGIS 4.2
+     */
+    void zoomToLayers( const QList<QgsMapLayer *> &layers );
 
     /**
      * Set a list of resolutions (map units per pixel) to which to "snap to" when zooming the map
@@ -1443,7 +1505,7 @@ class GUI_EXPORT QgsMapCanvas : public QGraphicsView, public QgsExpressionContex
     bool mDrawRenderingStats = false;
 
     //! Optionally use cache with rendered map layers for the current map settings
-    QgsMapRendererCache *mCache = nullptr;
+    std::unique_ptr<QgsMapRendererCache> mCache;
 
     QTimer *mResizeTimer = nullptr;
     QTimer *mRefreshTimer = nullptr;
@@ -1513,6 +1575,10 @@ class GUI_EXPORT QgsMapCanvas : public QGraphicsView, public QgsExpressionContex
     QPointer<QgsAbstract2DMapController> mMapController;
 
     QPointer< QgsStatusBar > mStatusBar;
+
+    QPointer< QgsMessageBar > mMessageBar;
+
+    QPointer< QgsUserInputWidget > mUserInputWidget;
 
     /**
      * Returns the last cursor position on the canvas in geographical coordinates

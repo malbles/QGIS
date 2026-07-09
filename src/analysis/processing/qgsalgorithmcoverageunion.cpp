@@ -65,10 +65,12 @@ QString QgsCoverageUnionAlgorithm::shortDescription() const
 
 QString QgsCoverageUnionAlgorithm::shortHelpString() const
 {
-  return QObject::tr( "This algorithm operates on a coverage (represented as a set of polygon features "
-                      "with exactly matching edge geometry) to dissolve (union) the geometries.\n\n"
-                      "It provides a heavily optimized approach for unioning these features compared with "
-                      "the standard Dissolve tools." );
+  return QObject::tr(
+    "This algorithm operates on a coverage (represented as a set of polygon features "
+    "with exactly matching edge geometry) to dissolve (union) the geometries.\n\n"
+    "It provides a heavily optimized approach for unioning these features compared with "
+    "the standard Dissolve tools."
+  );
 }
 
 QgsCoverageUnionAlgorithm *QgsCoverageUnionAlgorithm::createInstance() const
@@ -159,8 +161,11 @@ QVariantMap QgsCoverageUnionAlgorithm::processAlgorithm( const QVariantMap &para
   outFeature.setGeometry( std::move( dissolved ) );
   if ( !sink->addFeature( outFeature, QgsFeatureSink::FastInsert ) )
     throw QgsProcessingException( writeFeatureError( sink.get(), parameters, u"OUTPUT"_s ) );
+  else
+    feedback->featureAddedToSink( u"OUTPUT"_s );
 
   sink->finalize();
+  feedback->featureSinkFinalized( u"OUTPUT"_s );
 
   QVariantMap outputs;
   outputs.insert( u"OUTPUT"_s, sinkId );

@@ -17,9 +17,11 @@
 
 #include "qgsalgorithmpdalbuildvpc.h"
 
-#include "qgspointcloudlayer.h"
+#include <cmath>
+#include <memory>
+
+#include "qgsmaplayer.h"
 #include "qgsprocessingfeedback.h"
-#include "qgsrunprocess.h"
 
 #include <QString>
 
@@ -75,8 +77,25 @@ void QgsPdalBuildVpcAlgorithm::initAlgorithm( const QVariantMap & )
   addParameter( new QgsProcessingParameterBoolean( u"OVERVIEW"_s, QObject::tr( "Build overview point cloud" ), false ) );
 
   auto convertParam = std::make_unique<QgsProcessingParameterBoolean>( u"CONVERT_COPC"_s, QObject::tr( "Convert individual files to COPC format" ), false );
-  convertParam->setHelp( QObject::tr( "When enabled, all the individual files in the virtual point cloud will also be converted to COPC format to allow rendering of their points in QGIS.\nWhen disabled, the format of each individual file will be preserved. This is faster, however only the extent will be rendered for files using formats other than COPC and EPT." ) );
+  convertParam->setHelp(
+    QObject::tr(
+      "When enabled, all the individual files in the virtual point cloud will also be converted to COPC format to allow rendering of their points in QGIS.\nWhen disabled, the format of each "
+      "individual file will be preserved. This is faster, however only the extent will be rendered for files using formats other than COPC and EPT."
+    )
+  );
   addParameter( convertParam.release() );
+
+  auto overviewLength
+    = std::make_unique<QgsProcessingParameterNumber>( u"OVERVIEW_LENGTH"_s, QObject::tr( "Maximum width/height of tiled overviews" ), Qgis::ProcessingNumberParameterType::Double, QVariant(), true, 0 );
+  overviewLength->setFlags( overviewLength->flags() | Qgis::ProcessingParameterFlag::Advanced );
+  overviewLength->setHelp(
+    QObject::tr(
+      "Defines the maximum width and height that overview files may have in source layer CRS units.\nMultiple tiled overviews of that size will be generated covering the whole extent of the output "
+      "VPC.\n"
+      "If this value is not set or is larger than the extent of the output VPC, a single overview file will be generated."
+    )
+  );
+  addParameter( overviewLength.release() );
 
   addParameter( new QgsProcessingParameterPointCloudDestination( u"OUTPUT"_s, QObject::tr( "Virtual point cloud" ) ) );
 }
@@ -116,7 +135,7 @@ QStringList QgsPdalBuildVpcAlgorithm::createArgumentLists( const QVariantMap &pa
   }
 
   QStringList args;
-  args.reserve( 7 );
+  args.reserve( 8 );
 
   args << u"build_vpc"_s;
 
@@ -143,6 +162,12 @@ QStringList QgsPdalBuildVpcAlgorithm::createArgumentLists( const QVariantMap &pa
   if ( parameterAsBool( parameters, u"OVERVIEW"_s, context ) )
   {
     args << "--overview";
+  }
+
+  const double overviewLength = parameterAsDouble( parameters, "OVERVIEW_LENGTH", context );
+  if ( overviewLength > 0 )
+  {
+    args << u"--overview-length=%1"_s.arg( overviewLength );
   }
 
   applyThreadsParameter( args, context );

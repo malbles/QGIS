@@ -52,10 +52,12 @@ QgsRenderContext QgsMapCanvasSymbolItem::renderContext( QPainter *painter )
   }
   else
   {
-    context << QgsExpressionContextUtils::globalScope()
-            << QgsExpressionContextUtils::projectScope( QgsProject::instance() )
-            << QgsExpressionContextUtils::atlasScope( nullptr )
-            << QgsExpressionContextUtils::mapSettingsScope( QgsMapSettings() );
+    ms.setEllipsoid( QgsProject::instance()->ellipsoid() );
+    context
+      << QgsExpressionContextUtils::globalScope()
+      << QgsExpressionContextUtils::projectScope( QgsProject::instance() )
+      << QgsExpressionContextUtils::atlasScope( nullptr )
+      << QgsExpressionContextUtils::mapSettingsScope( ms );
   }
   //context << QgsExpressionContextUtils::layerScope( mLayer );
   context.setFeature( mFeature );

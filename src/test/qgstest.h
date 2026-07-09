@@ -47,25 +47,29 @@
 #include <QDir>
 #include <QFile>
 #include <QString>
+#include <QTemporaryDir>
 #include <QTextStream>
 #include <QtTest/QTest>
 
 using namespace Qt::StringLiterals;
 
-#define QGSTEST_MAIN( TestObject )             \
-  QT_BEGIN_NAMESPACE                           \
-  QT_END_NAMESPACE                             \
-  int main( int argc, char *argv[] )           \
-  {                                            \
-    QgsApplication app( argc, argv, false );   \
-    app.init();                                \
-    app.setAttribute( Qt::AA_Use96Dpi, true ); \
-    QTEST_DISABLE_KEYPAD_NAVIGATION            \
-    TestObject tc;                             \
-    QTEST_SET_MAIN_SOURCE_PATH                 \
-    return QTest::qExec( &tc, argc, argv );    \
+#define QGSTEST_MAIN( TestObject )                                     \
+  QT_BEGIN_NAMESPACE                                                   \
+  QT_END_NAMESPACE                                                     \
+  int main( int argc, char *argv[] )                                   \
+  {                                                                    \
+    QCoreApplication::setOrganizationName( u"QGIS"_s );                \
+    QCoreApplication::setOrganizationDomain( u"qgis.org"_s );          \
+    QCoreApplication::setApplicationName( u"QGIS-TEST"_s );            \
+    const QTemporaryDir settingsDir;                                   \
+    qputenv( "QGIS_CUSTOM_CONFIG_PATH", settingsDir.path().toUtf8() ); \
+    QgsApplication app( argc, argv, false );                           \
+    app.setAttribute( Qt::AA_Use96Dpi, true );                         \
+    QTEST_DISABLE_KEYPAD_NAVIGATION                                    \
+    TestObject tc;                                                     \
+    QTEST_SET_MAIN_SOURCE_PATH                                         \
+    return QTest::qExec( &tc, argc, argv );                            \
   }
-
 
 #define QGSCOMPARENEAR( value, expected, epsilon )                                                                                                                                                                     \
   {                                                                                                                                                                                                                    \
@@ -167,15 +171,9 @@ class TEST_EXPORT QgsTest : public QObject
 
   public:
     //! Returns TRUE if test is running on a CI infrastructure
-    static bool isCIRun()
-    {
-      return qgetenv( "QGIS_CONTINUOUS_INTEGRATION_RUN" ) == u"true"_s;
-    }
+    static bool isCIRun() { return qgetenv( "QGIS_CONTINUOUS_INTEGRATION_RUN" ) == u"true"_s; }
 
-    static bool runFlakyTests()
-    {
-      return qgetenv( "RUN_FLAKY_TESTS" ) == u"true"_s;
-    }
+    static bool runFlakyTests() { return qgetenv( "RUN_FLAKY_TESTS" ) == u"true"_s; }
 
     QgsTest( const QString &name, const QString &controlPathPrefix = QString() )
       : mName( name )
@@ -194,10 +192,7 @@ class TEST_EXPORT QgsTest : public QObject
     /**
      * Returns the full path to the test data with the given file path.
      */
-    QString testDataPath( const QString &filePath ) const
-    {
-      return mTestDataDir.filePath( filePath.startsWith( '/' ) ? filePath.mid( 1 ) : filePath );
-    }
+    QString testDataPath( const QString &filePath ) const { return mTestDataDir.filePath( filePath.startsWith( '/' ) ? filePath.mid( 1 ) : filePath ); }
 
     /**
      * Copies the test data with the given file path to a
@@ -261,7 +256,9 @@ class TEST_EXPORT QgsTest : public QObject
     /**
      * For internal use only -- use QGSRENDERMAPSETTINGSCHECK or QGSVERIFYRENDERMAPSETTINGSCHECK macros instead.
      */
-    bool renderMapSettingsCheck( const char *file, const char *function, int line, const QString &name, const QString &referenceImage, const QgsMapSettings &mapSettings, int allowedMismatch = 0, int colorTolerance = 0 )
+    bool renderMapSettingsCheck(
+      const char *file, const char *function, int line, const QString &name, const QString &referenceImage, const QgsMapSettings &mapSettings, int allowedMismatch = 0, int colorTolerance = 0
+    )
     {
       //use the QgsRenderChecker test utility class to
       //ensure the rendered output matches our control image
@@ -329,24 +326,37 @@ class TEST_EXPORT QgsTest : public QObject
               break;
           }
           errPos += "^^";
-          qWarning() << header.toStdString().c_str() << "Hex version of the parts of array that differ starting from char" << i << "."
-                     << "\n   Actual hex:  " << act.toHex()
-                     << "\n   Expected hex:" << exp.toHex()
-                     << "\n   Char error:  " << errPos.toStdString().c_str();
+          qWarning()
+            << header.toStdString().c_str()
+            << "Hex version of the parts of array that differ starting from char"
+            << i
+            << "."
+            << "\n   Actual hex:  "
+            << act.toHex()
+            << "\n   Expected hex:"
+            << exp.toHex()
+            << "\n   Char error:  "
+            << errPos.toStdString().c_str();
           QString msg = QString( "%1 Comparison failed in starting from char %2." ).arg( header ).arg( QString::number( i ) );
 
           // create copies of data as QTest::compare_helper will delete them
-          char *actualCopy = new char[act.size() + 1];
+          char *actualCopy = qstrdup( act.constData() );
           memcpy( actualCopy, act.data(), act.size() );
           actualCopy[act.size()] = 0;
-          char *expectedCopy = new char[exp.size() + 1];
+          char *expectedCopy = qstrdup( exp.constData() );
           memcpy( expectedCopy, exp.data(), exp.size() );
           expectedCopy[exp.size()] = 0;
 
-          return QTest::compare_helper( act == exp, msg.toStdString().c_str(),                           // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
-                                        actualCopy, expectedCopy,                                        //
-                                        actualPath.toStdString().c_str(), subPath.toStdString().c_str(), //
-                                        file, line );
+          return QTest::compare_helper(
+            act == exp,
+            msg.toStdString().c_str(), // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
+            actualCopy,
+            expectedCopy, //
+            actualPath.toStdString().c_str(),
+            subPath.toStdString().c_str(), //
+            file,
+            line
+          );
         }
       }
       return true;
@@ -355,7 +365,18 @@ class TEST_EXPORT QgsTest : public QObject
     /**
      * For internal use only -- use QGSIMAGECHECK or QGSVERIFYIMAGECHECK macros instead.
      */
-    bool imageCheck( const char *file, const char *function, int line, const QString &name, const QString &referenceImage, const QImage &image, const QString &controlName = QString(), int allowedMismatch = 20, const QSize &sizeTolerance = QSize( 0, 0 ), const int colorTolerance = 0 )
+    bool imageCheck(
+      const char *file,
+      const char *function,
+      int line,
+      const QString &name,
+      const QString &referenceImage,
+      const QImage &image,
+      const QString &controlName = QString(),
+      int allowedMismatch = 20,
+      const QSize &sizeTolerance = QSize( 0, 0 ),
+      const int colorTolerance = 0
+    )
     {
       if ( image.isNull() )
         return false;
@@ -369,7 +390,18 @@ class TEST_EXPORT QgsTest : public QObject
     /**
      * For internal use only -- use QGSIMAGECHECK or QGSVERIFYIMAGECHECK macros instead.
      */
-    bool imageCheck( const char *file, const char *function, int line, const QString &name, const QString &referenceImage, const QString &renderedFileName, const QString &controlName = QString(), int allowedMismatch = 20, const QSize &sizeTolerance = QSize( 0, 0 ), const int colorTolerance = 0 )
+    bool imageCheck(
+      const char *file,
+      const char *function,
+      int line,
+      const QString &name,
+      const QString &referenceImage,
+      const QString &renderedFileName,
+      const QString &controlName = QString(),
+      int allowedMismatch = 20,
+      const QSize &sizeTolerance = QSize( 0, 0 ),
+      const int colorTolerance = 0
+    )
     {
       QgsMultiRenderChecker checker;
       checker.setControlPathPrefix( mControlPathPrefix );
@@ -454,8 +486,7 @@ class TEST_EXPORT QgsTest : public QObject
 
       QFile::OpenMode mode = QIODevice::WriteOnly;
       bool fileIsEmpty = true;
-      if ( qgetenv( "QGIS_CONTINUOUS_INTEGRATION_RUN" ) == u"true"_s
-           || qgetenv( "QGIS_APPEND_TO_TEST_REPORT" ) == u"true"_s )
+      if ( qgetenv( "QGIS_CONTINUOUS_INTEGRATION_RUN" ) == u"true"_s || qgetenv( "QGIS_APPEND_TO_TEST_REPORT" ) == u"true"_s )
       {
         mode |= QIODevice::Append;
         if ( file.open( QIODevice::ReadOnly ) )
@@ -512,8 +543,7 @@ class TEST_EXPORT QgsTest : public QObject
       QFile file( reportFile );
 
       QFile::OpenMode mode = QIODevice::WriteOnly;
-      if ( qgetenv( "QGIS_CONTINUOUS_INTEGRATION_RUN" ) == u"true"_s
-           || qgetenv( "QGIS_APPEND_TO_TEST_REPORT" ) == u"true"_s )
+      if ( qgetenv( "QGIS_CONTINUOUS_INTEGRATION_RUN" ) == u"true"_s || qgetenv( "QGIS_APPEND_TO_TEST_REPORT" ) == u"true"_s )
         mode |= QIODevice::Append;
       else
         mode |= QIODevice::Truncate;
@@ -637,7 +667,9 @@ char *toString( const QgsCircle &geom )
 
 char *toString( const QgsDateTimeRange &range )
 {
-  return QTest::toString( u"<QgsDateTimeRange: %1%2, %3%4>"_s.arg( range.includeBeginning() ? u"["_s : u"("_s, range.begin().toString( Qt::ISODateWithMs ), range.end().toString( Qt::ISODateWithMs ), range.includeEnd() ? u"]"_s : u")"_s ) );
+  return QTest::toString(
+    u"<QgsDateTimeRange: %1%2, %3%4>"_s.arg( range.includeBeginning() ? u"["_s : u"("_s, range.begin().toString( Qt::ISODateWithMs ), range.end().toString( Qt::ISODateWithMs ), range.includeEnd() ? u"]"_s : u")"_s )
+  );
 }
 
 char *toString( const QgsInterval &interval )

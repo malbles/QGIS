@@ -69,8 +69,10 @@ void QgsRasterLayerUniqueValuesReportAlgorithm::initAlgorithm( const QVariantMap
 
 QString QgsRasterLayerUniqueValuesReportAlgorithm::shortHelpString() const
 {
-  return QObject::tr( "This algorithm returns the count and area of each unique value in a given raster layer. "
-                      "The area calculation is done in the area unit of the layer's CRS." );
+  return QObject::tr(
+    "This algorithm returns the count and area of each unique value in a given raster layer. "
+    "The area calculation is done in the area unit of the layer's CRS."
+  );
 }
 
 QString QgsRasterLayerUniqueValuesReportAlgorithm::shortDescription() const
@@ -219,8 +221,11 @@ QVariantMap QgsRasterLayerUniqueValuesReportAlgorithm::processAlgorithm( const Q
       f.setAttributes( QgsAttributes() << it.key() << it.value() << area );
       if ( !sink->addFeature( f, QgsFeatureSink::FastInsert ) )
         throw QgsProcessingException( writeFeatureError( sink.get(), parameters, u"OUTPUT_TABLE"_s ) );
+      else
+        feedback->featureAddedToSink( u"OUTPUT_TABLE"_s );
     }
     sink->finalize();
+    feedback->featureSinkFinalized( u"OUTPUT_TABLE"_s );
     outputs.insert( u"OUTPUT_TABLE"_s, tableDest );
   }
 

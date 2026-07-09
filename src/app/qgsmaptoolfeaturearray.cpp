@@ -29,7 +29,8 @@
 
 using namespace Qt::StringLiterals;
 
-const QgsSettingsEntryEnumFlag<QgsMapToolFeatureArray::ArrayMode> *QgsMapToolFeatureArray::settingsMode = new QgsSettingsEntryEnumFlag<QgsMapToolFeatureArray::ArrayMode>( u"featurearray-mode"_s, QgsSettingsTree::sTreeDigitizing, QgsMapToolFeatureArray::ArrayMode::FeatureCount );
+const QgsSettingsEntryEnumFlag<QgsMapToolFeatureArray::ArrayMode> *QgsMapToolFeatureArray::settingsMode
+  = new QgsSettingsEntryEnumFlag<QgsMapToolFeatureArray::ArrayMode>( u"featurearray-mode"_s, QgsSettingsTree::sTreeDigitizing, QgsMapToolFeatureArray::ArrayMode::FeatureCount );
 const QgsSettingsEntryInteger *QgsMapToolFeatureArray::settingsFeatureCount = new QgsSettingsEntryInteger( u"featurearray-feature-count"_s, QgsSettingsTree::sTreeDigitizing, 0 );
 const QgsSettingsEntryDouble *QgsMapToolFeatureArray::settingsFeatureSpacing = new QgsSettingsEntryDouble( u"featurearray-feature-spacing"_s, QgsSettingsTree::sTreeDigitizing, 0 );
 
@@ -44,9 +45,12 @@ void QgsMapToolFeatureArray::activate()
 {
   QgsMapToolAdvancedDigitizing::activate();
 
-  mUserInputWidget.reset( new QgsFeatureArrayUserWidget() );
+  mUserInputWidget = make_qobject_unique< QgsFeatureArrayUserWidget>();
   connect( mUserInputWidget.get(), &QgsFeatureArrayUserWidget::modeChanged, this, [this]( QgsMapToolFeatureArray::ArrayMode mode ) { mMode = mode; } );
-  connect( mUserInputWidget.get(), &QgsFeatureArrayUserWidget::featureCountChanged, this, [this]( int value ) { mFeatureCount = value; updateRubberband(); } );
+  connect( mUserInputWidget.get(), &QgsFeatureArrayUserWidget::featureCountChanged, this, [this]( int value ) {
+    mFeatureCount = value;
+    updateRubberband();
+  } );
   connect( mUserInputWidget.get(), &QgsFeatureArrayUserWidget::featureSpacingChanged, this, [this]( int value ) { mFeatureSpacing = value; } );
 
   setMode( QgsMapToolFeatureArray::settingsMode->value() );
@@ -191,9 +195,7 @@ void QgsMapToolFeatureArray::cadCanvasReleaseEvent( QgsMapMouseEvent *e )
         QgsFeatureIds fids;
         std::for_each( mFeatureList.begin(), mFeatureList.end(), [&fids]( QgsFeature f ) { fids << f.id(); } );
         QgsFeatureRequest request = QgsFeatureRequest().setFilterFids( fids );
-        if ( !QgisApp::instance()->vectorLayerTools()->copyMoveFeatures(
-               vlayer, request, dx * i, dy * i, &errorMsg, QgsProject::instance()->topologicalEditing(), nullptr, &childrenInfoMsg
-             ) )
+        if ( !QgisApp::instance()->vectorLayerTools()->copyMoveFeatures( vlayer, request, dx * i, dy * i, &errorMsg, QgsProject::instance()->topologicalEditing(), nullptr, &childrenInfoMsg ) )
         {
           emit messageEmitted( errorMsg, Qgis::MessageLevel::Critical );
           deleteRubberbands();
@@ -356,23 +358,11 @@ void QgsFeatureArrayUserWidget::updateUi()
 {
   const QgsMapToolFeatureArray::ArrayMode currentMode = mode();
 
-  mFeatureCountLabel->setVisible(
-    currentMode == QgsMapToolFeatureArray::ArrayMode::FeatureCount
-    || currentMode == QgsMapToolFeatureArray::ArrayMode::FeatureCountAndSpacing
-  );
-  mFeatureCountSpinBox->setVisible(
-    currentMode == QgsMapToolFeatureArray::ArrayMode::FeatureCount
-    || currentMode == QgsMapToolFeatureArray::ArrayMode::FeatureCountAndSpacing
-  );
+  mFeatureCountLabel->setVisible( currentMode == QgsMapToolFeatureArray::ArrayMode::FeatureCount || currentMode == QgsMapToolFeatureArray::ArrayMode::FeatureCountAndSpacing );
+  mFeatureCountSpinBox->setVisible( currentMode == QgsMapToolFeatureArray::ArrayMode::FeatureCount || currentMode == QgsMapToolFeatureArray::ArrayMode::FeatureCountAndSpacing );
 
-  mFeatureSpacingLabel->setVisible(
-    currentMode == QgsMapToolFeatureArray::ArrayMode::FeatureSpacing
-    || currentMode == QgsMapToolFeatureArray::ArrayMode::FeatureCountAndSpacing
-  );
-  mFeatureSpacingSpinBox->setVisible(
-    currentMode == QgsMapToolFeatureArray::ArrayMode::FeatureSpacing
-    || currentMode == QgsMapToolFeatureArray::ArrayMode::FeatureCountAndSpacing
-  );
+  mFeatureSpacingLabel->setVisible( currentMode == QgsMapToolFeatureArray::ArrayMode::FeatureSpacing || currentMode == QgsMapToolFeatureArray::ArrayMode::FeatureCountAndSpacing );
+  mFeatureSpacingSpinBox->setVisible( currentMode == QgsMapToolFeatureArray::ArrayMode::FeatureSpacing || currentMode == QgsMapToolFeatureArray::ArrayMode::FeatureCountAndSpacing );
 }
 
 void QgsFeatureArrayUserWidget::setMode( QgsMapToolFeatureArray::ArrayMode mode )

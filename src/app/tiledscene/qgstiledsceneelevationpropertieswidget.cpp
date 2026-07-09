@@ -42,7 +42,7 @@ QgsTiledSceneElevationPropertiesWidget::QgsTiledSceneElevationPropertiesWidget( 
   connect( mScaleZSpinBox, qOverload<double>( &QDoubleSpinBox::valueChanged ), this, &QgsTiledSceneElevationPropertiesWidget::onChanged );
   connect( mShiftZAxisButton, &QPushButton::clicked, this, &QgsTiledSceneElevationPropertiesWidget::shiftSceneZAxis );
 
-  // setProperty( "helpPage", u"working_with_point_clouds/point_clouds.html#elevation-properties"_s );
+  setProperty( "helpPage", u"working_with_3d_tiles/3d_tiles.html#elevation-properties"_s );
 }
 
 void QgsTiledSceneElevationPropertiesWidget::syncToLayer( QgsMapLayer *layer )
@@ -67,8 +67,7 @@ void QgsTiledSceneElevationPropertiesWidget::apply()
 
   QgsTiledSceneLayerElevationProperties *properties = qgis::down_cast<QgsTiledSceneLayerElevationProperties *>( mLayer->elevationProperties() );
 
-  const bool changed3DrelatedProperties = !qgsDoubleNear( mOffsetZSpinBox->value(), properties->zOffset() )
-                                          || !qgsDoubleNear( mScaleZSpinBox->value(), properties->zScale() );
+  const bool changed3DrelatedProperties = !qgsDoubleNear( mOffsetZSpinBox->value(), properties->zOffset() ) || !qgsDoubleNear( mScaleZSpinBox->value(), properties->zScale() );
 
   properties->setZOffset( mOffsetZSpinBox->value() );
   properties->setZScale( mScaleZSpinBox->value() );

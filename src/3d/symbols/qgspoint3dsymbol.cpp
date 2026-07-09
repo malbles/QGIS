@@ -21,6 +21,7 @@
 #include "qgs3dutils.h"
 #include "qgsmarkersymbol.h"
 #include "qgsmaterialregistry.h"
+#include "qgsmetalroughmaterialsettings.h"
 #include "qgsreadwritecontext.h"
 #include "qgssymbollayerutils.h"
 #include "qgsvectorlayer.h"
@@ -42,7 +43,7 @@ QgsAbstract3DSymbol *QgsPoint3DSymbol::create()
 }
 
 QgsPoint3DSymbol::QgsPoint3DSymbol()
-  : mMaterialSettings( std::make_unique<QgsPhongMaterialSettings>() )
+  : mMaterialSettings( std::make_unique<QgsMetalRoughMaterialSettings>() )
 {
   setBillboardSymbol( static_cast<QgsMarkerSymbol *>( QgsSymbol::defaultSymbol( Qgis::GeometryType::Point ) ) );
 }
@@ -86,6 +87,10 @@ void QgsPoint3DSymbol::writeXml( QDomElement &elem, const QgsReadWriteContext &c
   elemTransform.setAttribute( u"matrix"_s, Qgs3DUtils::matrix4x4toString( mTransform ) );
   elem.appendChild( elemTransform );
 
+  QDomElement elemDDP = doc.createElement( u"data-defined-properties"_s );
+  mDataDefinedProperties.writeXml( elemDDP, propertyDefinitions() );
+  elem.appendChild( elemDDP );
+
   if ( billboardSymbol() )
   {
     const QDomElement symbolElem = QgsSymbolLayerUtils::saveSymbol( u"symbol"_s, billboardSymbol(), doc, context );
@@ -100,10 +105,10 @@ void QgsPoint3DSymbol::readXml( const QDomElement &elem, const QgsReadWriteConte
   mAltClamping = Qgs3DUtils::altClampingFromString( elemDataProperties.attribute( u"alt-clamping"_s ) );
 
   const QDomElement elemMaterial = elem.firstChildElement( u"material"_s );
-  const QString materialType = elem.attribute( u"material_type"_s, u"phong"_s );
-  mMaterialSettings.reset( Qgs3D::materialRegistry()->createMaterialSettings( materialType ) );
+  const QString materialType = elem.attribute( u"material_type"_s, u"metalrough"_s );
+  mMaterialSettings = Qgs3D::materialRegistry()->createMaterialSettings( materialType );
   if ( !mMaterialSettings )
-    mMaterialSettings.reset( Qgs3D::materialRegistry()->createMaterialSettings( u"phong"_s ) );
+    mMaterialSettings = Qgs3D::materialRegistry()->createMaterialSettings( u"metalrough"_s );
   mMaterialSettings->readXml( elemMaterial, context );
 
   mShape = shapeFromString( elem.attribute( u"shape"_s ) );
@@ -114,6 +119,10 @@ void QgsPoint3DSymbol::readXml( const QDomElement &elem, const QgsReadWriteConte
 
   const QDomElement elemTransform = elem.firstChildElement( u"transform"_s );
   mTransform = Qgs3DUtils::stringToMatrix4x4( elemTransform.attribute( u"matrix"_s ) );
+
+  const QDomElement elemDDP = elem.firstChildElement( u"data-defined-properties"_s );
+  if ( !elemDDP.isNull() )
+    mDataDefinedProperties.readXml( elemDDP, propertyDefinitions() );
 
   const QDomElement symbolElem = elem.firstChildElement( u"symbol"_s );
 
@@ -215,6 +224,22 @@ QVariant QgsPoint3DSymbol::shapeProperty( const QString &property ) const
           return 10;
         return radius;
       }
+      else if ( property == "rings"_L1 )
+      {
+        constexpr int DEFAULT_RINGS = 16;
+        const int rings = mShapeProperties.value( property, DEFAULT_RINGS ).toInt();
+        if ( rings == 0 )
+          return DEFAULT_RINGS;
+        return rings;
+      }
+      else if ( property == "slices"_L1 )
+      {
+        constexpr int DEFAULT_SLICES = 16;
+        const int slices = mShapeProperties.value( property, DEFAULT_SLICES ).toInt();
+        if ( slices == 0 )
+          return DEFAULT_SLICES;
+        return slices;
+      }
       break;
     }
     case Qgis::Point3DShape::Cone:
@@ -281,6 +306,19 @@ QVariant QgsPoint3DSymbol::shapeProperty( const QString &property ) const
     }
 
     case Qgis::Point3DShape::Model:
+    {
+      // defaults are "z" up, "y" forward -- this ensures default rendering matches 3.x appearance
+      if ( property == "upAxis"_L1 )
+      {
+        return mShapeProperties.value( u"upAxis"_s, u"z"_s ).toString();
+      }
+      if ( property == "forwardAxis"_L1 )
+      {
+        return mShapeProperties.value( u"forwardAxis"_s, u"y"_s ).toString();
+      }
+      break;
+    }
+
     case Qgis::Point3DShape::Billboard:
       break;
   }

@@ -63,10 +63,12 @@ void QgsOrderByExpressionAlgorithm::initAlgorithm( const QVariantMap & )
 
 QString QgsOrderByExpressionAlgorithm::shortHelpString() const
 {
-  return QObject::tr( "This algorithm sorts a vector layer according to an expression. Be careful, it might not work as expected with some providers, "
-                      "the order might not be kept every time.\n\n"
-                      "For help with QGIS expression functions, see the inbuilt help for specific functions "
-                      "which is available in the expression builder." );
+  return QObject::tr(
+    "This algorithm sorts a vector layer according to an expression. Be careful, it might not work as expected with some providers, "
+    "the order might not be kept every time.\n\n"
+    "For help with QGIS expression functions, see the inbuilt help for specific functions "
+    "which is available in the expression builder."
+  );
 }
 
 QString QgsOrderByExpressionAlgorithm::shortDescription() const
@@ -117,11 +119,14 @@ QVariantMap QgsOrderByExpressionAlgorithm::processAlgorithm( const QVariantMap &
     }
     if ( !sink->addFeature( inFeature ) )
       throw QgsProcessingException( writeFeatureError( sink.get(), parameters, u"OUTPUT"_s ) );
+    else
+      feedback->featureAddedToSink( u"OUTPUT"_s );
     feedback->setProgress( current * step );
     current++;
   }
 
   sink->finalize();
+  feedback->featureSinkFinalized( u"OUTPUT"_s );
 
   QVariantMap outputs;
   outputs.insert( u"OUTPUT"_s, sinkId );

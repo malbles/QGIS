@@ -57,8 +57,10 @@ QString QgsRasterSamplingAlgorithm::shortDescription() const
 
 QString QgsRasterSamplingAlgorithm::shortHelpString() const
 {
-  return QObject::tr( "This algorithm creates a new vector layer with the same attributes of the input layer and the raster values corresponding on the point location.\n\n"
-                      "If the raster layer has more than one band, all the band values are sampled." );
+  return QObject::tr(
+    "This algorithm creates a new vector layer with the same attributes of the input layer and the raster values corresponding on the point location.\n\n"
+    "If the raster layer has more than one band, all the band values are sampled."
+  );
 }
 
 QgsRasterSamplingAlgorithm *QgsRasterSamplingAlgorithm::createInstance() const
@@ -100,7 +102,8 @@ QVariantMap QgsRasterSamplingAlgorithm::processAlgorithm( const QVariantMap &par
   for ( int band = 1; band <= mBandCount; band++ )
   {
     const Qgis::DataType dataType = mDataProvider->dataType( band );
-    const bool intSafe = ( dataType == Qgis::DataType::Byte || dataType == Qgis::DataType::UInt16 || dataType == Qgis::DataType::Int16 || dataType == Qgis::DataType::UInt32 || dataType == Qgis::DataType::Int32 || dataType == Qgis::DataType::CInt16 || dataType == Qgis::DataType::CInt32 );
+    const bool intSafe
+      = ( dataType == Qgis::DataType::Byte || dataType == Qgis::DataType::UInt16 || dataType == Qgis::DataType::Int16 || dataType == Qgis::DataType::UInt32 || dataType == Qgis::DataType::Int32 || dataType == Qgis::DataType::CInt16 || dataType == Qgis::DataType::CInt32 );
 
     newFields.append( QgsField( u"%1%2"_s.arg( fieldPrefix, QString::number( band ) ), intSafe ? QMetaType::Type::Int : QMetaType::Type::Double ) );
     emptySampleAttributes += QVariant();
@@ -136,6 +139,8 @@ QVariantMap QgsRasterSamplingAlgorithm::processAlgorithm( const QVariantMap &par
       outputFeature.setAttributes( attributes );
       if ( !sink->addFeature( outputFeature, QgsFeatureSink::FastInsert ) )
         throw QgsProcessingException( writeFeatureError( sink.get(), parameters, u"OUTPUT"_s ) );
+      else
+        feedback->featureAddedToSink( u"OUTPUT"_s );
       feedback->reportError( QObject::tr( "No geometry attached to feature %1." ).arg( feature.id() ) );
       continue;
     }
@@ -147,10 +152,15 @@ QVariantMap QgsRasterSamplingAlgorithm::processAlgorithm( const QVariantMap &par
       outputFeature.setAttributes( attributes );
       if ( !sink->addFeature( outputFeature, QgsFeatureSink::FastInsert ) )
         throw QgsProcessingException( writeFeatureError( sink.get(), parameters, u"OUTPUT"_s ) );
+      else
+        feedback->featureAddedToSink( u"OUTPUT"_s );
       feedback->reportError( QObject::tr( "Impossible to sample data of multipart feature %1." ).arg( feature.id() ) );
       continue;
     }
-    QgsPointXY point( *( geometry.isMultipart() ? qgsgeometry_cast<const QgsPoint *>( qgsgeometry_cast<const QgsMultiPoint *>( geometry.constGet() )->geometryN( 0 ) ) : qgsgeometry_cast<const QgsPoint *>( geometry.constGet() ) ) );
+    QgsPointXY point(
+      *( geometry.isMultipart() ? qgsgeometry_cast<const QgsPoint *>( qgsgeometry_cast<const QgsMultiPoint *>( geometry.constGet() )->geometryN( 0 ) )
+                                : qgsgeometry_cast<const QgsPoint *>( geometry.constGet() ) )
+    );
     try
     {
       point = ct.transform( point );
@@ -161,6 +171,8 @@ QVariantMap QgsRasterSamplingAlgorithm::processAlgorithm( const QVariantMap &par
       outputFeature.setAttributes( attributes );
       if ( !sink->addFeature( outputFeature, QgsFeatureSink::FastInsert ) )
         throw QgsProcessingException( writeFeatureError( sink.get(), parameters, u"OUTPUT"_s ) );
+      else
+        feedback->featureAddedToSink( u"OUTPUT"_s );
       feedback->reportError( QObject::tr( "Could not reproject feature %1 to raster CRS." ).arg( feature.id() ) );
       continue;
     }
@@ -174,9 +186,12 @@ QVariantMap QgsRasterSamplingAlgorithm::processAlgorithm( const QVariantMap &par
     outputFeature.setAttributes( attributes );
     if ( !sink->addFeature( outputFeature, QgsFeatureSink::FastInsert ) )
       throw QgsProcessingException( writeFeatureError( sink.get(), parameters, u"OUTPUT"_s ) );
+    else
+      feedback->featureAddedToSink( u"OUTPUT"_s );
   }
 
   sink->finalize();
+  feedback->featureSinkFinalized( u"OUTPUT"_s );
 
   QVariantMap outputs;
   outputs.insert( u"OUTPUT"_s, dest );

@@ -61,12 +61,14 @@ void QgsRemoveNullGeometryAlgorithm::initAlgorithm( const QVariantMap & )
 
 QString QgsRemoveNullGeometryAlgorithm::shortHelpString() const
 {
-  return QObject::tr( "This algorithm removes any features which do not have a geometry from a vector layer. "
-                      "All other features will be copied unchanged.\n\n"
-                      "Optionally, the features with null geometries can be saved to a separate output.\n\n"
-                      "If 'Also remove empty geometries' is checked, the algorithm removes features whose geometries "
-                      "have no coordinates, i.e., geometries that are empty. In that case, also the null "
-                      "output will reflect this option, containing both null and empty geometries." );
+  return QObject::tr(
+    "This algorithm removes any features which do not have a geometry from a vector layer. "
+    "All other features will be copied unchanged.\n\n"
+    "Optionally, the features with null geometries can be saved to a separate output.\n\n"
+    "If 'Also remove empty geometries' is checked, the algorithm removes features whose geometries "
+    "have no coordinates, i.e., geometries that are empty. In that case, also the null "
+    "output will reflect this option, containing both null and empty geometries."
+  );
 }
 
 QString QgsRemoveNullGeometryAlgorithm::shortDescription() const
@@ -111,11 +113,14 @@ QVariantMap QgsRemoveNullGeometryAlgorithm::processAlgorithm( const QVariantMap 
     {
       if ( !nonNullSink->addFeature( f, QgsFeatureSink::FastInsert ) )
         throw QgsProcessingException( writeFeatureError( nonNullSink.get(), parameters, u"OUTPUT"_s ) );
+      else
+        feedback->featureAddedToSink( u"OUTPUT"_s );
     }
     else if ( ( ( !removeEmpty && !f.hasGeometry() ) || ( removeEmpty && f.geometry().isEmpty() ) ) && nullSink )
     {
       if ( !nullSink->addFeature( f, QgsFeatureSink::FastInsert ) )
         throw QgsProcessingException( writeFeatureError( nullSink.get(), parameters, u"NULL_OUTPUT"_s ) );
+      feedback->featureAddedToSink( u"NULL_OUTPUT"_s );
     }
 
     feedback->setProgress( current * step );
@@ -126,11 +131,14 @@ QVariantMap QgsRemoveNullGeometryAlgorithm::processAlgorithm( const QVariantMap 
   if ( nonNullSink )
   {
     nonNullSink->finalize();
+    feedback->featureSinkFinalized( u"OUTPUT"_s );
+
     outputs.insert( u"OUTPUT"_s, nonNullSinkId );
   }
   if ( nullSink )
   {
     nullSink->finalize();
+    feedback->featureSinkFinalized( u"NULL_OUTPUT"_s );
     outputs.insert( u"NULL_OUTPUT"_s, nullSinkId );
   }
   return outputs;

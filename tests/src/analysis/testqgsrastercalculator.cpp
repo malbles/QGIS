@@ -102,11 +102,6 @@ void TestQgsRasterCalculator::initTestCase()
   //
   // Runs once before any tests are run
   //
-  // Set up the QgsSettings environment
-  QCoreApplication::setOrganizationName( u"QGIS"_s );
-  QCoreApplication::setOrganizationDomain( u"qgis.org"_s );
-  QCoreApplication::setApplicationName( u"QGIS-TEST"_s );
-
   QgsApplication::init();
   QgsApplication::initQgis();
 
@@ -124,9 +119,7 @@ void TestQgsRasterCalculator::initTestCase()
   QFileInfo landsat4326RasterFileInfo( landsat4326FileName );
   mpLandsatRasterLayer4326 = new QgsRasterLayer( landsat4326RasterFileInfo.filePath(), landsat4326RasterFileInfo.completeBaseName() );
 
-  QgsProject::instance()->addMapLayers(
-    QList<QgsMapLayer *>() << mpLandsatRasterLayer << mpLandsatRasterLayer4326
-  );
+  QgsProject::instance()->addMapLayers( QList<QgsMapLayer *>() << mpLandsatRasterLayer << mpLandsatRasterLayer4326 );
 }
 
 void TestQgsRasterCalculator::cleanupTestCase()
@@ -144,8 +137,7 @@ void TestQgsRasterCalculator::init()
 }
 
 void TestQgsRasterCalculator::cleanup()
-{
-}
+{}
 
 void TestQgsRasterCalculator::dualOp_data()
 {
@@ -701,8 +693,7 @@ void TestQgsRasterCalculator::findNodes()
 {
   std::unique_ptr<QgsRasterCalcNode> calcNode;
 
-  auto _test =
-    [&]( QString exp, const QgsRasterCalcNode::Type type ) -> QList<const QgsRasterCalcNode *> {
+  auto _test = [&]( QString exp, const QgsRasterCalcNode::Type type ) -> QList<const QgsRasterCalcNode *> {
     QString error;
     calcNode.reset( QgsRasterCalcNode::parseRasterCalcString( exp, error ) );
     return calcNode->findNodes( type );
@@ -769,10 +760,15 @@ void TestQgsRasterCalculator::testRasterEntries()
   }
   QStringList keys( entryMap.keys() );
   keys.sort();
-  QCOMPARE( keys.join( ',' ), QStringLiteral( "dem@1,dem_1@1,landsat@1,landsat@2,landsat@3,landsat@4,"
-                                              "landsat@5,landsat@6,landsat@7,landsat@8,landsat@9,"
-                                              "landsat_4326@1,landsat_4326@2,landsat_4326@3,landsat_4326@4,"
-                                              "landsat_4326@5,landsat_4326@6,landsat_4326@7,landsat_4326@8,landsat_4326@9,slope2@1" ) );
+  QCOMPARE(
+    keys.join( ',' ),
+    QStringLiteral(
+      "dem@1,dem_1@1,landsat@1,landsat@2,landsat@3,landsat@4,"
+      "landsat@5,landsat@6,landsat@7,landsat@8,landsat@9,"
+      "landsat_4326@1,landsat_4326@2,landsat_4326@3,landsat_4326@4,"
+      "landsat_4326@5,landsat_4326@6,landsat_4326@7,landsat_4326@8,landsat_4326@9,slope2@1"
+    )
+  );
 }
 
 void TestQgsRasterCalculator::errors()
@@ -1095,7 +1091,8 @@ void TestQgsRasterCalculator::testFunctionTypeWithLayer()
 
   // Test with one raster as condition, one raster first option and number as second option
   // if ( landsat@1 > 124.5, landsat@1 + landsat@2 , landsat@3 )
-  QgsRasterCalculator rc3( u" if(\"landsat@1\">124.5, \"landsat@1\" + \"landsat@2\" , \"landsat@1\" - \"landsat@2\" ) "_s, tmpName, u"GTiff"_s, extent, crs, 2, 3, entries, QgsProject::instance()->transformContext() );
+  QgsRasterCalculator
+    rc3( u" if(\"landsat@1\">124.5, \"landsat@1\" + \"landsat@2\" , \"landsat@1\" - \"landsat@2\" ) "_s, tmpName, u"GTiff"_s, extent, crs, 2, 3, entries, QgsProject::instance()->transformContext() );
   QCOMPARE( rc3.processCalculation(), QgsRasterCalculator::Result::Success );
 
   //open output file and check results
@@ -1218,7 +1215,8 @@ void TestQgsRasterCalculator::testComparisonExpressionWithOpenCL()
     const QString expression = u"if ( \"dem@1\" %1 1, 0, 1 )"_s.arg( op );
     QTemporaryDir tmpDir;
     const QString tmpFile = tmpDir.path() + "/output.tif";
-    QgsRasterCalculator rc( expression, tmpFile, u"GTiff"_s, QgsRectangle(), QgsCoordinateReferenceSystem(), 2, 2, { QgsRasterCalculatorEntry { u"dem@1"_s, mpLandsatRasterLayer, 1 } }, QgsProject::instance()->transformContext() );
+    QgsRasterCalculator
+      rc( expression, tmpFile, u"GTiff"_s, QgsRectangle(), QgsCoordinateReferenceSystem(), 2, 2, { QgsRasterCalculatorEntry { u"dem@1"_s, mpLandsatRasterLayer, 1 } }, QgsProject::instance()->transformContext() );
     QCOMPARE( rc.processCalculation(), QgsRasterCalculator::Result::Success );
   }
 }

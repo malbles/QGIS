@@ -71,11 +71,13 @@ QString QgsCoverageValidateAlgorithm::shortDescription() const
 
 QString QgsCoverageValidateAlgorithm::shortHelpString() const
 {
-  return QObject::tr( "This algorithm analyzes a coverage (represented as a set of polygon features "
-                      "with exactly matching edge geometry) to find places where the "
-                      "assumption of exactly matching edges is not met.\n\n"
-                      "Invalidity includes polygons that overlap "
-                      "or that have gaps smaller than the specified gap width." );
+  return QObject::tr(
+    "This algorithm analyzes a coverage (represented as a set of polygon features "
+    "with exactly matching edge geometry) to find places where the "
+    "assumption of exactly matching edges is not met.\n\n"
+    "Invalidity includes polygons that overlap "
+    "or that have gaps smaller than the specified gap width."
+  );
 }
 
 QgsCoverageValidateAlgorithm *QgsCoverageValidateAlgorithm::createInstance() const
@@ -156,6 +158,8 @@ QVariantMap QgsCoverageValidateAlgorithm::processAlgorithm( const QVariantMap &p
             outFeature.setGeometry( QgsGeometry( *partsIt ? ( *partsIt )->clone() : nullptr ) );
             if ( !sink->addFeature( outFeature, QgsFeatureSink::FastInsert ) )
               throw QgsProcessingException( writeFeatureError( sink.get(), parameters, u"OUTPUT"_s ) );
+            else
+              feedback->featureAddedToSink( u"OUTPUT"_s );
           }
         }
       }
@@ -172,7 +176,10 @@ QVariantMap QgsCoverageValidateAlgorithm::processAlgorithm( const QVariantMap &p
 
   feedback->setProgress( 100 );
   if ( sink )
+  {
     sink->finalize();
+    feedback->featureSinkFinalized( u"OUTPUT"_s );
+  }
 
   QVariantMap outputs;
   outputs.insert( u"OUTPUT"_s, sinkId );

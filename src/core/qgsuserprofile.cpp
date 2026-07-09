@@ -18,6 +18,7 @@
 #include <sqlite3.h>
 
 #include "qgsapplication.h"
+#include "qgssettingsentry.h"
 #include "qgssqliteutils.h"
 
 #include <QDir>
@@ -56,9 +57,9 @@ const QString QgsUserProfile::name() const
 
 void QgsUserProfile::initSettings() const
 {
-  // tell QSettings to use INI format and save the file in custom config path
-  QSettings::setDefaultFormat( QSettings::IniFormat );
-  QSettings::setPath( QSettings::IniFormat, QSettings::UserScope, folder() );
+#ifndef __EMSCRIPTEN__
+  QgsSettingsEntryBase::setupUserSettings( folder() );
+#endif
 }
 
 const QString QgsUserProfile::alias() const

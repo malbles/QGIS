@@ -38,8 +38,7 @@ using namespace Qt::StringLiterals;
 QgsSnappingLayerDelegate::QgsSnappingLayerDelegate( QgsMapCanvas *canvas, QObject *parent )
   : QItemDelegate( parent )
   , mCanvas( canvas )
-{
-}
+{}
 
 QWidget *QgsSnappingLayerDelegate::createEditor( QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index ) const
 {
@@ -201,9 +200,7 @@ void QgsSnappingLayerDelegate::setModelData( QWidget *editor, QAbstractItemModel
       model->setData( index, static_cast<int>( type ), Qt::EditRole );
     }
   }
-  else if (
-    index.column() == QgsSnappingLayerTreeModel::UnitsColumn
-  )
+  else if ( index.column() == QgsSnappingLayerTreeModel::UnitsColumn )
   {
     QComboBox *w = qobject_cast<QComboBox *>( editor );
     if ( w )
@@ -453,23 +450,30 @@ bool QgsSnappingLayerTreeModel::nodeShown( QgsLayerTreeNode *node ) const
 {
   if ( !node )
     return false;
-  if ( node->nodeType() == QgsLayerTreeNode::NodeGroup )
+
+  switch ( node->nodeType() )
   {
-    const auto constChildren = node->children();
-    for ( QgsLayerTreeNode *child : constChildren )
+    case QgsLayerTreeNode::NodeGroup:
     {
-      if ( nodeShown( child ) )
+      const auto constChildren = node->children();
+      for ( QgsLayerTreeNode *child : constChildren )
       {
-        return true;
+        if ( nodeShown( child ) )
+        {
+          return true;
+        }
       }
+      return false;
     }
-    return false;
+    case QgsLayerTreeNode::NodeLayer:
+    {
+      QgsVectorLayer *layer = qobject_cast<QgsVectorLayer *>( QgsLayerTree::toLayer( node )->layer() );
+      return layer && layer->isSpatial() && ( mFilterText.isEmpty() || layer->name().contains( mFilterText, Qt::CaseInsensitive ) );
+    }
+    case QgsLayerTreeNode::NodeCustom:
+      return false;
   }
-  else
-  {
-    QgsVectorLayer *layer = qobject_cast<QgsVectorLayer *>( QgsLayerTree::toLayer( node )->layer() );
-    return layer && layer->isSpatial() && ( mFilterText.isEmpty() || layer->name().contains( mFilterText, Qt::CaseInsensitive ) );
-  }
+  return false;
 }
 
 QVariant QgsSnappingLayerTreeModel::headerData( int section, Qt::Orientation orientation, int role ) const

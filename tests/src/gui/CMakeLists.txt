@@ -30,6 +30,7 @@ set(TESTS
   testqgscategorizedrendererwidget.cpp
   testqgsdatumtransformdialog.cpp
   testqgsdiagramproperties.cpp
+  testqgsdockablewidgethelper.cpp
   testqgsdoublespinbox.cpp
   testqgsdualview.cpp
   testqgsattributeform.cpp
@@ -59,9 +60,11 @@ set(TESTS
   testqgseditorwidgetregistry.cpp
   testqgskeyvaluewidget.cpp
   testqgsfiledownloader.cpp
+  testqgsfileuploader.cpp
   testqgslayoutgui.cpp
   testqgslayoutview.cpp
   testqgsmaptooleditblanksegments.cpp
+  testqgsmaptoolextraitem.cpp
   testqgsvaluemapwidgetwrapper.cpp
   testqgsvaluemapconfigdlg.cpp
   testqgsvaluerelationwidgetwrapper.cpp

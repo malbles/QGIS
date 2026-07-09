@@ -294,7 +294,26 @@ static QVariant fcnGenerateSeries( const QVariantList &values, const QgsExpressi
   return array;
 }
 
-static QVariant fcnGetVariable( const QVariantList &values, const QgsExpressionContext *context, QgsExpression *parent, const QgsExpressionNodeFunction * )
+static QVariant fcnGeometry( const QVariantList &, const QgsExpressionContext *context, QgsExpression *, const QgsExpressionNodeFunction * )
+{
+  if ( !context )
+    return QVariant();
+
+  // prefer geometry from context if it's present, otherwise fallback to context's feature's geometry
+  if ( context->hasGeometry() )
+    return context->geometry();
+  else
+  {
+    FEAT_FROM_CONTEXT( context, f )
+    QgsGeometry geom = f.geometry();
+    if ( !geom.isNull() )
+      return QVariant::fromValue( geom );
+    else
+      return QVariant();
+  }
+}
+
+static QVariant fcnGetVariable( const QVariantList &values, const QgsExpressionContext *context, QgsExpression *parent, const QgsExpressionNodeFunction *node )
 {
   if ( !context )
     return QVariant();
@@ -311,11 +330,7 @@ static QVariant fcnGetVariable( const QVariantList &values, const QgsExpressionC
   }
   else if ( name == "geometry"_L1 )
   {
-    if ( !context->hasFeature() )
-      return QVariant();
-
-    const QgsFeature feature = context->feature();
-    return feature.hasGeometry() ? QVariant::fromValue( feature.geometry() ) : QVariant();
+    return fcnGeometry( values, context, parent, node );
   }
   else
   {
@@ -591,6 +606,109 @@ static QVariant fcnExponentialScale( const QVariantList &values, const QgsExpres
   // Return exponentially scaled value
   double ratio = ( std::pow( exponent, val - domainMin ) - 1 ) / ( std::pow( exponent, domainMax - domainMin ) - 1 );
   return QVariant( ( rangeMax - rangeMin ) * ratio + rangeMin );
+}
+
+static QVariant fcnCubicBezierScale( const QVariantList &values, const QgsExpressionContext *, QgsExpression *parent, const QgsExpressionNodeFunction * )
+{
+  const double val = QgsExpressionUtils::getDoubleValue( values.at( 0 ), parent );
+  const double domainMin = QgsExpressionUtils::getDoubleValue( values.at( 1 ), parent );
+  const double domainMax = QgsExpressionUtils::getDoubleValue( values.at( 2 ), parent );
+  const double rangeMin = QgsExpressionUtils::getDoubleValue( values.at( 3 ), parent );
+  const double rangeMax = QgsExpressionUtils::getDoubleValue( values.at( 4 ), parent );
+
+  const double x1 = QgsExpressionUtils::getDoubleValue( values.at( 5 ), parent );
+  const double y1 = QgsExpressionUtils::getDoubleValue( values.at( 6 ), parent );
+  const double x2 = QgsExpressionUtils::getDoubleValue( values.at( 7 ), parent );
+  const double y2 = QgsExpressionUtils::getDoubleValue( values.at( 8 ), parent );
+
+  if ( x1 < 0.0 || x1 > 1.0 || y1 < 0.0 || y1 > 1.0 || x2 < 0.0 || x2 > 1.0 || y2 < 0.0 || y2 > 1.0 )
+  {
+    parent->setEvalErrorString( QObject::tr( "Cubic bezier control points must be between 0 and 1" ) );
+    return QVariant();
+  }
+
+  if ( domainMin >= domainMax )
+  {
+    parent->setEvalErrorString( QObject::tr( "Domain max must be greater than domain min" ) );
+    return QVariant();
+  }
+
+  // outside of domain?
+  if ( val >= domainMax )
+  {
+    return rangeMax;
+  }
+  else if ( val <= domainMin )
+  {
+    return rangeMin;
+  }
+
+  // normalize input to [0, 1] range
+  const double t = ( val - domainMin ) / ( domainMax - domainMin );
+
+  // solve using UnitBezier approach (based on MapLibre native's implementation)
+  const double cx = 3.0 * x1;
+  const double bx = 3.0 * ( x2 - x1 ) - cx;
+  const double ax = 1.0 - cx - bx;
+  const double cy = 3.0 * y1;
+  const double by = 3.0 * ( y2 - y1 ) - cy;
+  const double ay = 1.0 - cy - by;
+
+  constexpr double epsilon = 1e-6;
+
+  // solve for s using Newton's method (8 iterations)
+  double s = t;
+  bool solved = false;
+  for ( int i = 0; i < 8; ++i )
+  {
+    const double x2val = ( ( ax * s + bx ) * s + cx ) * s - t;
+    if ( std::fabs( x2val ) < epsilon )
+    {
+      solved = true;
+      break;
+    }
+    const double d2 = ( 3.0 * ax * s + 2.0 * bx ) * s + cx;
+    if ( std::fabs( d2 ) < 1e-6 )
+      break;
+    s = s - x2val / d2;
+  }
+
+  if ( !solved )
+  {
+    // fallback to bisection approach
+    double t0 = 0.0;
+    double t1 = 1.0;
+    s = t;
+
+    if ( s < t0 )
+    {
+      s = t0;
+      solved = true;
+    }
+    else if ( s > t1 )
+    {
+      s = t1;
+      solved = true;
+    }
+
+    while ( !solved && t0 < t1 )
+    {
+      const double x2val = ( ( ax * s + bx ) * s + cx ) * s;
+      if ( std::fabs( x2val - t ) < epsilon )
+      {
+        solved = true;
+        break;
+      }
+      if ( t > x2val )
+        t0 = s;
+      else
+        t1 = s;
+      s = ( t1 - t0 ) * 0.5 + t0;
+    }
+  }
+
+  const double easedT = ( ( ay * s + by ) * s + cy ) * s;
+  return QVariant( ( rangeMax - rangeMin ) * easedT + rangeMin );
 }
 
 static QVariant fcnMax( const QVariantList &values, const QgsExpressionContext *, QgsExpression *parent, const QgsExpressionNodeFunction * )
@@ -1391,6 +1509,7 @@ static QVariant fcnGetTimeZone( const QVariantList &values, const QgsExpressionC
   }
   return QVariant();
 #else
+  Q_UNUSED( values )
   parent->setEvalErrorString( QObject::tr( "Qt is built without Qt timezone support, cannot use fcnGetTimeZone" ) );
   return QVariant();
 #endif
@@ -1408,6 +1527,7 @@ static QVariant fcnSetTimeZone( const QVariantList &values, const QgsExpressionC
   }
   return QVariant();
 #else
+  Q_UNUSED( values )
   parent->setEvalErrorString( QObject::tr( "Qt is built without Qt timezone support, cannot use fcnSetTimeZone" ) );
   return QVariant();
 #endif
@@ -1424,6 +1544,7 @@ static QVariant fcnConvertTimeZone( const QVariantList &values, const QgsExpress
   }
   return QVariant();
 #else
+  Q_UNUSED( values )
   parent->setEvalErrorString( QObject::tr( "Qt is built without Qt timezone support, cannot use fcnConvertTimeZone" ) );
   return QVariant();
 #endif
@@ -1439,6 +1560,7 @@ static QVariant fcnTimeZoneToId( const QVariantList &values, const QgsExpression
   }
   return QVariant();
 #else
+  Q_UNUSED( values )
   parent->setEvalErrorString( QObject::tr( "Qt is built without Qt timezone support, cannot use fcnTimeZoneToId" ) );
   return QVariant();
 #endif
@@ -2719,6 +2841,30 @@ static QVariant fcnConcat( const QVariantList &values, const QgsExpressionContex
       concat += QgsExpressionUtils::getStringValue( value, parent );
   }
   return concat;
+}
+
+static QVariant fcnConcatWs( const QVariantList &values, const QgsExpressionContext *, QgsExpression *parent, const QgsExpressionNodeFunction * )
+{
+  if ( values.length() < 2 )
+  {
+    parent->setEvalErrorString( QObject::tr( "Function concat_ws requires at least 2 arguments" ) );
+    return QVariant();
+  }
+
+  const QString separator = QgsExpressionUtils::getStringValue( values.at( 0 ), parent );
+
+  QStringList stringValues;
+  stringValues.reserve( values.size() - 1 );
+  for ( int i = 1; i < values.size(); ++i )
+  {
+    const QVariant value = values.at( i );
+    if ( !QgsVariantUtils::isNull( value ) )
+    {
+      stringValues.append( QgsExpressionUtils::getStringValue( value, parent ) );
+    }
+  }
+
+  return stringValues.join( separator );
 }
 
 static QVariant fcnStrpos( const QVariantList &values, const QgsExpressionContext *, QgsExpression *parent, const QgsExpressionNodeFunction * )
@@ -4662,25 +4808,6 @@ static QVariant fcnMat( const QVariantList &values, const QgsExpressionContext *
 }
 
 
-static QVariant fcnGeometry( const QVariantList &, const QgsExpressionContext *context, QgsExpression *, const QgsExpressionNodeFunction * )
-{
-  if ( !context )
-    return QVariant();
-
-  // prefer geometry from context if it's present, otherwise fallback to context's feature's geometry
-  if ( context->hasGeometry() )
-    return context->geometry();
-  else
-  {
-    FEAT_FROM_CONTEXT( context, f )
-    QgsGeometry geom = f.geometry();
-    if ( !geom.isNull() )
-      return QVariant::fromValue( geom );
-    else
-      return QVariant();
-  }
-}
-
 static QVariant fcnGeomFromWKT( const QVariantList &values, const QgsExpressionContext *, QgsExpression *parent, const QgsExpressionNodeFunction * )
 {
   QString wkt = QgsExpressionUtils::getStringValue( values.at( 0 ), parent );
@@ -5276,7 +5403,78 @@ static QVariant fcnEquals( const QVariantList &values, const QgsExpressionContex
 {
   QgsGeometry fGeom = QgsExpressionUtils::getGeometry( values.at( 0 ), parent );
   QgsGeometry sGeom = QgsExpressionUtils::getGeometry( values.at( 1 ), parent );
-  return fGeom.equals( sGeom ) ? TVL_True : TVL_False;
+  return fGeom.isExactlyEqual( sGeom ) ? TVL_True : TVL_False;
+}
+
+static QVariant fcnIsEqualsExact( const QVariantList &values, const QgsExpressionContext *, QgsExpression *parent, const QgsExpressionNodeFunction * )
+{
+  QgsGeometry fGeom = QgsExpressionUtils::getGeometry( values.at( 0 ), parent );
+  QgsGeometry sGeom = QgsExpressionUtils::getGeometry( values.at( 1 ), parent );
+  const QString backendStr = QgsExpressionUtils::getStringValue( values.at( 2 ), parent );
+
+  bool ok;
+  Qgis::GeometryBackend backend = qgsEnumKeyToValue( backendStr, Qgis::GeometryBackend::QGIS, false, &ok );
+  if ( !ok )
+    SET_EVAL_ERROR( u"Geometry backend '%1' does not exist!"_s.arg( backendStr ) );
+
+  QVariant ret = TVL_False;
+  try
+  {
+    ret = fGeom.isExactlyEqual( sGeom, backend ) ? TVL_True : TVL_False;
+  }
+  catch ( QgsNotSupportedException &e )
+  {
+    SET_EVAL_ERROR( e.what() );
+  }
+  return ret;
+}
+
+static QVariant fcnIsEqualsTopological( const QVariantList &values, const QgsExpressionContext *, QgsExpression *parent, const QgsExpressionNodeFunction * )
+{
+  QgsGeometry fGeom = QgsExpressionUtils::getGeometry( values.at( 0 ), parent );
+  QgsGeometry sGeom = QgsExpressionUtils::getGeometry( values.at( 1 ), parent );
+  const QString backendStr = QgsExpressionUtils::getStringValue( values.at( 2 ), parent );
+
+  bool ok;
+  Qgis::GeometryBackend backend = qgsEnumKeyToValue( backendStr, Qgis::GeometryBackend::GEOS, false, &ok );
+  if ( !ok )
+    SET_EVAL_ERROR( u"Geometry backend '%1' does not exist!"_s.arg( backendStr ) );
+
+  QVariant ret = TVL_False;
+  try
+  {
+    ret = fGeom.isTopologicallyEqual( sGeom, backend ) ? TVL_True : TVL_False;
+  }
+  catch ( QgsNotSupportedException &e )
+  {
+    SET_EVAL_ERROR( e.what() );
+  }
+  return ret;
+}
+
+static QVariant fcnIsEqualsFuzzy( const QVariantList &values, const QgsExpressionContext *, QgsExpression *parent, const QgsExpressionNodeFunction * )
+{
+  QgsGeometry fGeom = QgsExpressionUtils::getGeometry( values.at( 0 ), parent );
+  QgsGeometry sGeom = QgsExpressionUtils::getGeometry( values.at( 1 ), parent );
+  const QString backendStr = QgsExpressionUtils::getStringValue( values.at( 2 ), parent );
+
+  bool ok;
+  Qgis::GeometryBackend backend = qgsEnumKeyToValue( backendStr, Qgis::GeometryBackend::QGIS, false, &ok );
+  if ( !ok )
+    SET_EVAL_ERROR( u"Geometry backend '%1' does not exist!"_s.arg( backendStr ) );
+
+  double epsilon = QgsExpressionUtils::getDoubleValue( values.at( 3 ), parent );
+
+  QVariant ret = TVL_False;
+  try
+  {
+    ret = fGeom.isFuzzyEqual( sGeom, epsilon, backend ) ? TVL_True : TVL_False;
+  }
+  catch ( QgsNotSupportedException &e )
+  {
+    SET_EVAL_ERROR( e.what() );
+  }
+  return ret;
 }
 
 static QVariant fcnBuffer( const QVariantList &values, const QgsExpressionContext *, QgsExpression *parent, const QgsExpressionNodeFunction * )
@@ -7132,12 +7330,18 @@ static QVariant fcnGetLayerProperty( const QVariantList &values, const QgsExpres
 {
   const QString layerProperty = QgsExpressionUtils::getStringValue( values.at( 1 ), parent );
 
+  bool translate = true;
+  if ( values.length() >= 3 )
+  {
+    translate = QgsExpressionUtils::getTVLValue( values.at( 2 ), parent ) == QgsExpressionUtils::TVL::True;
+  }
+
   bool foundLayer = false;
   const QVariant res = QgsExpressionUtils::runMapLayerFunctionThreadSafe(
     values.at( 0 ),
     context,
     parent,
-    [layerProperty]( QgsMapLayer *layer ) -> QVariant {
+    [layerProperty, translate]( QgsMapLayer *layer ) -> QVariant {
       if ( !layer )
         return QVariant();
 
@@ -7204,23 +7408,23 @@ static QVariant fcnGetLayerProperty( const QVariantList &values, const QgsExpres
         switch ( layer->type() )
         {
           case Qgis::LayerType::Vector:
-            return QCoreApplication::translate( "expressions", "Vector" );
+            return translate ? QCoreApplication::translate( "expressions", "Vector" ) : u"Vector"_s;
           case Qgis::LayerType::Raster:
-            return QCoreApplication::translate( "expressions", "Raster" );
+            return translate ? QCoreApplication::translate( "expressions", "Raster" ) : u"Raster"_s;
           case Qgis::LayerType::Mesh:
-            return QCoreApplication::translate( "expressions", "Mesh" );
+            return translate ? QCoreApplication::translate( "expressions", "Mesh" ) : u"Mesh"_s;
           case Qgis::LayerType::VectorTile:
-            return QCoreApplication::translate( "expressions", "Vector Tile" );
+            return translate ? QCoreApplication::translate( "expressions", "Vector Tile" ) : u"Vector Tile"_s;
           case Qgis::LayerType::Plugin:
-            return QCoreApplication::translate( "expressions", "Plugin" );
+            return translate ? QCoreApplication::translate( "expressions", "Plugin" ) : u"Plugin"_s;
           case Qgis::LayerType::Annotation:
-            return QCoreApplication::translate( "expressions", "Annotation" );
+            return translate ? QCoreApplication::translate( "expressions", "Annotation" ) : u"Annotation"_s;
           case Qgis::LayerType::PointCloud:
-            return QCoreApplication::translate( "expressions", "Point Cloud" );
+            return translate ? QCoreApplication::translate( "expressions", "Point Cloud" ) : u"Point Cloud"_s;
           case Qgis::LayerType::Group:
-            return QCoreApplication::translate( "expressions", "Group" );
+            return translate ? QCoreApplication::translate( "expressions", "Group" ) : u"Group"_s;
           case Qgis::LayerType::TiledScene:
-            return QCoreApplication::translate( "expressions", "Tiled Scene" );
+            return translate ? QCoreApplication::translate( "expressions", "Tiled Scene" ) : u"Tiled Scene"_s;
         }
       }
       else
@@ -8193,7 +8397,8 @@ static QVariant fcnFromBase64( const QVariantList &values, const QgsExpressionCo
   return QVariant( decoded );
 }
 
-typedef bool ( QgsGeometry::*RelationFunction )( const QgsGeometry &geometry ) const;
+//! allows geometry function with different parameters to be used with the same executeGeomOverlay function
+typedef std::function<bool( const QgsGeometry &geometry, const QgsGeometry &other, const QVariantList &values, Qgis::GeometryBackend backend )> RelationFunction;
 
 static QVariant executeGeomOverlay(
   const QVariantList &values,
@@ -8263,28 +8468,9 @@ static QVariant executeGeomOverlay(
   ENSURE_NO_EVAL_ERROR
   qlonglong limit = QgsExpressionUtils::getIntValue( limitValue, parent );
 
-  // Fifth parameter (for nearest only) is the max distance
   double max_distance = 0;
-  if ( isNearestFunc ) //maxdistance param handling
-  {
-    node = QgsExpressionUtils::getNode( values.at( 4 ), parent );
-    ENSURE_NO_EVAL_ERROR
-    QVariant distanceValue = node->eval( parent, context );
-    ENSURE_NO_EVAL_ERROR
-    max_distance = QgsExpressionUtils::getDoubleValue( distanceValue, parent );
-  }
+  bool cacheEnabled = false;
 
-  // Fifth or sixth (for nearest only) parameter is the cache toggle
-  node = QgsExpressionUtils::getNode( values.at( isNearestFunc ? 5 : 4 ), parent );
-  ENSURE_NO_EVAL_ERROR
-  QVariant cacheValue = node->eval( parent, context );
-  ENSURE_NO_EVAL_ERROR
-  bool cacheEnabled = cacheValue.toBool();
-
-  // Sixth parameter (for intersects only) is the min overlap (area or length)
-  // Seventh parameter (for intersects only) is the min inscribed circle radius
-  // Eighth parameter (for intersects only) is the return_details
-  // Ninth parameter (for intersects only) is the sort_by_intersection_size flag
   double minOverlap { -1 };
   double minInscribedCircleRadius { -1 };
   bool returnDetails = false; //#spellok
@@ -8292,21 +8478,54 @@ static QVariant executeGeomOverlay(
   bool sortAscending = false;
   bool requireMeasures = false;
   bool overlapOrRadiusFilter = false;
-  if ( isIntersectsFunc )
+
+  Qgis::GeometryBackend backend = Qgis::GeometryBackend::GEOS;
+
+  if ( isNearestFunc ) //maxdistance param handling
   {
+    // Fifth parameter (for nearest only) is the max distance
+    node = QgsExpressionUtils::getNode( values.at( 4 ), parent );
+    ENSURE_NO_EVAL_ERROR
+    QVariant distanceValue = node->eval( parent, context );
+    ENSURE_NO_EVAL_ERROR
+    max_distance = QgsExpressionUtils::getDoubleValue( distanceValue, parent );
+
+    // Sixth (for nearest only) parameter is the cache toggle
+    node = QgsExpressionUtils::getNode( values.at( 5 ), parent );
+    ENSURE_NO_EVAL_ERROR
+    QVariant cacheValue = node->eval( parent, context );
+    ENSURE_NO_EVAL_ERROR
+    cacheEnabled = cacheValue.toBool();
+  }
+  else
+  {
+    // Fifth parameter is the cache toggle
+    node = QgsExpressionUtils::getNode( values.at( 4 ), parent );
+    ENSURE_NO_EVAL_ERROR
+    QVariant cacheValue = node->eval( parent, context );
+    ENSURE_NO_EVAL_ERROR
+    cacheEnabled = cacheValue.toBool();
+
+    // Sixth parameter is the min overlap (area or length)
     node = QgsExpressionUtils::getNode( values.at( 5 ), parent ); //in expressions overlay functions throw the exception: Eval Error: Cannot convert '' to int
     ENSURE_NO_EVAL_ERROR
     const QVariant minOverlapValue = node->eval( parent, context );
     ENSURE_NO_EVAL_ERROR
     minOverlap = QgsExpressionUtils::getDoubleValue( minOverlapValue, parent );
+
+    // Seventh parameter is the min inscribed circle radius
     node = QgsExpressionUtils::getNode( values.at( 6 ), parent ); //in expressions overlay functions throw the exception: Eval Error: Cannot convert '' to int
     ENSURE_NO_EVAL_ERROR
     const QVariant minInscribedCircleRadiusValue = node->eval( parent, context );
     ENSURE_NO_EVAL_ERROR
     minInscribedCircleRadius = QgsExpressionUtils::getDoubleValue( minInscribedCircleRadiusValue, parent );
+
+    // Eighth parameter is the return_details
     node = QgsExpressionUtils::getNode( values.at( 7 ), parent );
     // Return measures is only effective when an expression is set
     returnDetails = !testOnly && node->eval( parent, context ).toBool(); //#spellok
+
+    // Ninth parameter is the sort_by_intersection_size flag
     node = QgsExpressionUtils::getNode( values.at( 8 ), parent );
     // Sort by measures is only effective when an expression is set
     const QString sorting { node->eval( parent, context ).toString().toLower() };
@@ -8314,8 +8533,18 @@ static QVariant executeGeomOverlay(
     sortAscending = sorting.startsWith( "asc" );
     requireMeasures = sortByMeasure || returnDetails; //#spellok
     overlapOrRadiusFilter = minInscribedCircleRadius != -1 || minOverlap != -1;
-  }
 
+    // Tenth parameter is the geometry backend
+    node = QgsExpressionUtils::getNode( values.at( 9 ), parent ); //in expressions overlay functions throw the exception: Eval Error: Cannot convert '' to int
+    ENSURE_NO_EVAL_ERROR
+    const QString backendStr = node->eval( parent, context ).toString().toUpper();
+    ENSURE_NO_EVAL_ERROR
+
+    bool ok;
+    backend = qgsEnumKeyToValue( backendStr, Qgis::GeometryBackend::GEOS, false, &ok );
+    if ( !ok )
+      SET_EVAL_ERROR( u"Geometry backend '%1' does not exist!"_s.arg( backendStr ) );
+  }
 
   FEAT_FROM_CONTEXT( context, feat )
   const QgsGeometry geometry = feat.geometry();
@@ -8525,45 +8754,72 @@ static QVariant executeGeomOverlay(
   QVariantList results;
 
   QListIterator<QgsFeature> i( features );
-  while ( i.hasNext() && ( sortByMeasure || limit == -1 || foundCount < limit ) )
+  try
   {
-    QgsFeature feat2 = i.next();
-
-
-    if ( !relationFunction || ( geometry.*relationFunction )( feat2.geometry() ) ) // Calls the method provided as template argument for the function (e.g. QgsGeometry::intersects)
+    while ( i.hasNext() && ( sortByMeasure || limit == -1 || foundCount < limit ) )
     {
-      double overlapValue = -1;
-      double radiusValue = -1;
+      QgsFeature feat2 = i.next();
 
-      if ( isIntersectsFunc && ( requireMeasures || overlapOrRadiusFilter ) )
+
+      if ( relationFunction( geometry, feat2.geometry(), values, backend ) ) // Calls the method provided as template argument for the function (e.g. QgsGeometry::intersects)
       {
-        QgsGeometry intersection { geometry.intersection( feat2.geometry() ) };
+        double overlapValue = -1;
+        double radiusValue = -1;
 
-        // Pre-process collections: if the tested geometry is a polygon we take the polygons from the collection
-        if ( intersection.wkbType() == Qgis::WkbType::GeometryCollection )
+        if ( isIntersectsFunc && ( requireMeasures || overlapOrRadiusFilter ) )
         {
-          const QVector<QgsGeometry> geometries { intersection.asGeometryCollection() };
-          intersection = QgsGeometry();
-          QgsMultiPolygonXY poly;
-          QgsMultiPolylineXY line;
-          QgsMultiPointXY point;
-          for ( const auto &geom : std::as_const( geometries ) )
+          QgsGeometry intersection { geometry.intersection( feat2.geometry(), QgsGeometryParameters() ) };
+
+          // Pre-process collections: if the tested geometry is a polygon we take the polygons from the collection
+          if ( intersection.wkbType() == Qgis::WkbType::GeometryCollection )
           {
-            switch ( geom.type() )
+            const QVector<QgsGeometry> geometries { intersection.asGeometryCollection() };
+            intersection = QgsGeometry();
+            QgsMultiPolygonXY poly;
+            QgsMultiPolylineXY line;
+            QgsMultiPointXY point;
+            for ( const auto &geom : std::as_const( geometries ) )
+            {
+              switch ( geom.type() )
+              {
+                case Qgis::GeometryType::Polygon:
+                {
+                  poly.append( geom.asPolygon() );
+                  break;
+                }
+                case Qgis::GeometryType::Line:
+                {
+                  line.append( geom.asPolyline() );
+                  break;
+                }
+                case Qgis::GeometryType::Point:
+                {
+                  point.append( geom.asPoint() );
+                  break;
+                }
+                case Qgis::GeometryType::Unknown:
+                case Qgis::GeometryType::Null:
+                {
+                  break;
+                }
+              }
+            }
+
+            switch ( geometry.type() )
             {
               case Qgis::GeometryType::Polygon:
               {
-                poly.append( geom.asPolygon() );
+                intersection = QgsGeometry::fromMultiPolygonXY( poly );
                 break;
               }
               case Qgis::GeometryType::Line:
               {
-                line.append( geom.asPolyline() );
+                intersection = QgsGeometry::fromMultiPolylineXY( line );
                 break;
               }
               case Qgis::GeometryType::Point:
               {
-                point.append( geom.asPoint() );
+                intersection = QgsGeometry::fromMultiPointXY( point );
                 break;
               }
               case Qgis::GeometryType::Unknown:
@@ -8574,164 +8830,145 @@ static QVariant executeGeomOverlay(
             }
           }
 
-          switch ( geometry.type() )
+          // Depending on the intersection geometry type and on the geometry type of
+          // the tested geometry we can run different tests and collect different measures
+          // that can be used for sorting (if required).
+          switch ( intersection.type() )
           {
             case Qgis::GeometryType::Polygon:
             {
-              intersection = QgsGeometry::fromMultiPolygonXY( poly );
-              break;
-            }
-            case Qgis::GeometryType::Line:
-            {
-              intersection = QgsGeometry::fromMultiPolylineXY( line );
-              break;
-            }
-            case Qgis::GeometryType::Point:
-            {
-              intersection = QgsGeometry::fromMultiPointXY( point );
-              break;
-            }
-            case Qgis::GeometryType::Unknown:
-            case Qgis::GeometryType::Null:
-            {
-              break;
-            }
-          }
-        }
-
-        // Depending on the intersection geometry type and on the geometry type of
-        // the tested geometry we can run different tests and collect different measures
-        // that can be used for sorting (if required).
-        switch ( intersection.type() )
-        {
-          case Qgis::GeometryType::Polygon:
-          {
-            // Overlap and inscribed circle tests must be checked both (if the values are != -1)
-            bool testResult { testPolygon( intersection, radiusValue, overlapValue ) };
-
-            if ( !testResult && overlapOrRadiusFilter )
-            {
-              continue;
-            }
-
-            break;
-          }
-
-          case Qgis::GeometryType::Line:
-          {
-            // If the intersection is a linestring and a minimum circle is required
-            // we can discard this result immediately.
-            if ( minInscribedCircleRadius != -1 )
-            {
-              continue;
-            }
-
-            // Otherwise a test for the overlap value is performed.
-            const bool testResult { testLinestring( intersection, overlapValue ) };
-
-            if ( !testResult && overlapOrRadiusFilter )
-            {
-              continue;
-            }
-
-            break;
-          }
-
-          case Qgis::GeometryType::Point:
-          {
-            // If the intersection is a point and a minimum circle is required
-            // we can discard this result immediately.
-            if ( minInscribedCircleRadius != -1 )
-            {
-              continue;
-            }
-
-            bool testResult { false };
-            if ( minOverlap != -1 || requireMeasures )
-            {
-              // Initially set this to 0 because it's a point intersection...
-              overlapValue = 0;
-              // ... but if the target geometry is not a point and the source
-              // geometry is a point, we must record the length or the area
-              // of the intersected geometry and use that as a measure for
-              // sorting or reporting.
-              if ( geometry.type() == Qgis::GeometryType::Point )
-              {
-                switch ( feat2.geometry().type() )
-                {
-                  case Qgis::GeometryType::Unknown:
-                  case Qgis::GeometryType::Null:
-                  case Qgis::GeometryType::Point:
-                  {
-                    break;
-                  }
-                  case Qgis::GeometryType::Line:
-                  {
-                    testResult = testLinestring( feat2.geometry(), overlapValue );
-                    break;
-                  }
-                  case Qgis::GeometryType::Polygon:
-                  {
-                    testResult = testPolygon( feat2.geometry(), radiusValue, overlapValue );
-                    break;
-                  }
-                }
-              }
+              // Overlap and inscribed circle tests must be checked both (if the values are != -1)
+              bool testResult { testPolygon( intersection, radiusValue, overlapValue ) };
 
               if ( !testResult && overlapOrRadiusFilter )
               {
                 continue;
               }
-            }
-            break;
-          }
 
-          case Qgis::GeometryType::Null:
-          case Qgis::GeometryType::Unknown:
-          {
-            continue;
+              break;
+            }
+
+            case Qgis::GeometryType::Line:
+            {
+              // If the intersection is a linestring and a minimum circle is required
+              // we can discard this result immediately.
+              if ( minInscribedCircleRadius != -1 )
+              {
+                continue;
+              }
+
+              // Otherwise a test for the overlap value is performed.
+              const bool testResult { testLinestring( intersection, overlapValue ) };
+
+              if ( !testResult && overlapOrRadiusFilter )
+              {
+                continue;
+              }
+
+              break;
+            }
+
+            case Qgis::GeometryType::Point:
+            {
+              // If the intersection is a point and a minimum circle is required
+              // we can discard this result immediately.
+              if ( minInscribedCircleRadius != -1 )
+              {
+                continue;
+              }
+
+              bool testResult { false };
+              if ( minOverlap != -1 || requireMeasures )
+              {
+                // Initially set this to 0 because it's a point intersection...
+                overlapValue = 0;
+                // ... but if the target geometry is not a point and the source
+                // geometry is a point, we must record the length or the area
+                // of the intersected geometry and use that as a measure for
+                // sorting or reporting.
+                if ( geometry.type() == Qgis::GeometryType::Point )
+                {
+                  switch ( feat2.geometry().type() )
+                  {
+                    case Qgis::GeometryType::Unknown:
+                    case Qgis::GeometryType::Null:
+                    case Qgis::GeometryType::Point:
+                    {
+                      break;
+                    }
+                    case Qgis::GeometryType::Line:
+                    {
+                      testResult = testLinestring( feat2.geometry(), overlapValue );
+                      break;
+                    }
+                    case Qgis::GeometryType::Polygon:
+                    {
+                      testResult = testPolygon( feat2.geometry(), radiusValue, overlapValue );
+                      break;
+                    }
+                  }
+                }
+
+                if ( !testResult && overlapOrRadiusFilter )
+                {
+                  continue;
+                }
+              }
+              break;
+            }
+
+            case Qgis::GeometryType::Null:
+            case Qgis::GeometryType::Unknown:
+            {
+              continue;
+            }
           }
         }
-      }
 
-      found = true;
-      foundCount++;
+        found = true;
+        foundCount++;
 
-      // We just want a single boolean result if there is any intersect: finish and return true
-      if ( testOnly )
-        break;
+        // We just want a single boolean result if there is any intersect: finish and return true
+        if ( testOnly )
+          break;
 
-      if ( !invert )
-      {
-        // We want a list of attributes / geometries / other expression values, evaluate now
-        subContext.setFeature( feat2 );
-        const QVariant expResult = subExpression.evaluate( &subContext );
-
-        if ( requireMeasures )
+        if ( !invert )
         {
-          QVariantMap resultRecord;
-          resultRecord.insert( u"id"_s, feat2.id() );
-          resultRecord.insert( u"result"_s, expResult );
-          // Overlap is always added because return measures was set
-          resultRecord.insert( u"overlap"_s, overlapValue );
-          // Radius is only added when is different than -1 (because for linestrings is not set)
-          if ( radiusValue != -1 )
+          // We want a list of attributes / geometries / other expression values, evaluate now
+          subContext.setFeature( feat2 );
+          const QVariant expResult = subExpression.evaluate( &subContext );
+
+          if ( requireMeasures )
           {
-            resultRecord.insert( u"radius"_s, radiusValue );
+            QVariantMap resultRecord;
+            resultRecord.insert( u"id"_s, feat2.id() );
+            resultRecord.insert( u"result"_s, expResult );
+            // Overlap is always added because return measures was set
+            resultRecord.insert( u"overlap"_s, overlapValue );
+            // Radius is only added when is different than -1 (because for linestrings is not set)
+            if ( radiusValue != -1 )
+            {
+              resultRecord.insert( u"radius"_s, radiusValue );
+            }
+            results.append( resultRecord );
           }
-          results.append( resultRecord );
+          else
+          {
+            results.append( expResult );
+          }
         }
         else
         {
-          results.append( expResult );
+          // If not, results is a list of found ids, which we'll inverse and evaluate below
+          results.append( feat2.id() );
         }
       }
-      else
-      {
-        // If not, results is a list of found ids, which we'll inverse and evaluate below
-        results.append( feat2.id() );
-      }
     }
+  }
+  catch ( QgsException &e )
+  {
+    parent->setEvalErrorString( e.what() );
+    return false;
   }
 
   if ( testOnly )
@@ -8795,42 +9032,85 @@ static QVariant executeGeomOverlay(
 
 static QVariant fcnGeomOverlayIntersects( const QVariantList &values, const QgsExpressionContext *context, QgsExpression *parent, const QgsExpressionNodeFunction * )
 {
-  return executeGeomOverlay( values, context, parent, &QgsGeometry::intersects, false, 0, false, true );
+  RelationFunction geomFunction = []( const QgsGeometry &geometry, const QgsGeometry &other, const QVariantList &, Qgis::GeometryBackend ) -> bool { return geometry.intersects( other ); };
+  return executeGeomOverlay( values, context, parent, geomFunction, false, 0, false, true );
 }
 
 static QVariant fcnGeomOverlayContains( const QVariantList &values, const QgsExpressionContext *context, QgsExpression *parent, const QgsExpressionNodeFunction * )
 {
-  return executeGeomOverlay( values, context, parent, &QgsGeometry::contains );
+  RelationFunction geomFunction = []( const QgsGeometry &geometry, const QgsGeometry &other, const QVariantList &, Qgis::GeometryBackend ) -> bool { return geometry.contains( other ); };
+  return executeGeomOverlay( values, context, parent, geomFunction );
 }
 
 static QVariant fcnGeomOverlayCrosses( const QVariantList &values, const QgsExpressionContext *context, QgsExpression *parent, const QgsExpressionNodeFunction * )
 {
-  return executeGeomOverlay( values, context, parent, &QgsGeometry::crosses );
+  RelationFunction geomFunction = []( const QgsGeometry &geometry, const QgsGeometry &other, const QVariantList &, Qgis::GeometryBackend ) -> bool { return geometry.crosses( other ); };
+  return executeGeomOverlay( values, context, parent, geomFunction );
 }
 
 static QVariant fcnGeomOverlayEquals( const QVariantList &values, const QgsExpressionContext *context, QgsExpression *parent, const QgsExpressionNodeFunction * )
 {
-  return executeGeomOverlay( values, context, parent, &QgsGeometry::equals, false, 0.01 ); //grow amount should adapt to current units
+  RelationFunction geomFunction = []( const QgsGeometry &geometry, const QgsGeometry &other, const QVariantList &, Qgis::GeometryBackend ) -> bool {
+    return geometry.isExactlyEqual( other, Qgis::GeometryBackend::QGIS );
+  };
+  return executeGeomOverlay( values, context, parent, geomFunction, false, 0.01 ); //grow amount should adapt to current units
+}
+
+static QVariant fcnGeomOverlayEqualsExact( const QVariantList &values, const QgsExpressionContext *context, QgsExpression *parent, const QgsExpressionNodeFunction * )
+{
+  RelationFunction geomFunction = []( const QgsGeometry &geometry, const QgsGeometry &other, const QVariantList &, Qgis::GeometryBackend backend ) -> bool {
+    return geometry.isExactlyEqual( other, backend );
+  };
+  return executeGeomOverlay( values, context, parent, geomFunction, false, 0.01 ); //grow amount should adapt to current units
+}
+
+static QVariant fcnGeomOverlayEqualsTopological( const QVariantList &values, const QgsExpressionContext *context, QgsExpression *parent, const QgsExpressionNodeFunction * )
+{
+  RelationFunction geomFunction = []( const QgsGeometry &geometry, const QgsGeometry &other, const QVariantList &, Qgis::GeometryBackend backend ) -> bool {
+    return geometry.isTopologicallyEqual( other, backend );
+  };
+  return executeGeomOverlay( values, context, parent, geomFunction, false, 0.01 ); //grow amount should adapt to current units
+}
+
+static QVariant fcnGeomOverlayEqualsFuzzy( const QVariantList &values, const QgsExpressionContext *context, QgsExpression *parent, const QgsExpressionNodeFunction * )
+{
+  // This parameter is the epsilon tolerance
+  QgsExpressionNode *node = QgsExpressionUtils::getNode( values.at( 10 ), parent );
+  ENSURE_NO_EVAL_ERROR
+  QVariant epsilonValue = node->eval( parent, context );
+  ENSURE_NO_EVAL_ERROR
+  double epsilon = QgsExpressionUtils::getDoubleValue( epsilonValue, parent );
+
+  RelationFunction geomFunction = [epsilon]( const QgsGeometry &geometry, const QgsGeometry &other, const QVariantList &, Qgis::GeometryBackend backend ) -> bool {
+    return geometry.isFuzzyEqual( other, epsilon, backend );
+  };
+  return executeGeomOverlay( values, context, parent, geomFunction, false, 0.01 ); //grow amount should adapt to current units
 }
 
 static QVariant fcnGeomOverlayTouches( const QVariantList &values, const QgsExpressionContext *context, QgsExpression *parent, const QgsExpressionNodeFunction * )
 {
-  return executeGeomOverlay( values, context, parent, &QgsGeometry::touches, false, 0.01 ); //grow amount should adapt to current units
+  RelationFunction geomFunction = []( const QgsGeometry &geometry, const QgsGeometry &other, const QVariantList &, Qgis::GeometryBackend ) -> bool { return geometry.touches( other ); };
+  return executeGeomOverlay( values, context, parent, geomFunction, false, 0.01 ); //grow amount should adapt to current units
 }
 
 static QVariant fcnGeomOverlayWithin( const QVariantList &values, const QgsExpressionContext *context, QgsExpression *parent, const QgsExpressionNodeFunction * )
 {
-  return executeGeomOverlay( values, context, parent, &QgsGeometry::within );
+  RelationFunction geomFunction = []( const QgsGeometry &geometry, const QgsGeometry &other, const QVariantList &, Qgis::GeometryBackend ) -> bool { return geometry.within( other ); };
+  return executeGeomOverlay( values, context, parent, geomFunction );
 }
 
 static QVariant fcnGeomOverlayDisjoint( const QVariantList &values, const QgsExpressionContext *context, QgsExpression *parent, const QgsExpressionNodeFunction * )
 {
-  return executeGeomOverlay( values, context, parent, &QgsGeometry::intersects, true, 0, false, true );
+  RelationFunction geomFunction = []( const QgsGeometry &geometry, const QgsGeometry &other, const QVariantList &, Qgis::GeometryBackend ) -> bool { return geometry.intersects( other ); };
+  return executeGeomOverlay( values, context, parent, geomFunction, true, 0, false, true );
 }
 
 static QVariant fcnGeomOverlayNearest( const QVariantList &values, const QgsExpressionContext *context, QgsExpression *parent, const QgsExpressionNodeFunction * )
 {
-  return executeGeomOverlay( values, context, parent, nullptr, false, 0, true );
+  RelationFunction geomFunction = []( const QgsGeometry &, const QgsGeometry &, const QVariantList &, Qgis::GeometryBackend ) -> bool {
+    return true; // does nothing on purpose
+  };
+  return executeGeomOverlay( values, context, parent, geomFunction, false, 0, true );
 }
 
 const QList<QgsExpressionFunction *> &QgsExpression::Functions()
@@ -8860,18 +9140,18 @@ const QList<QgsExpressionFunction *> &QgsExpression::Functions()
       << new QgsStaticExpressionFunction( u"sqrt"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"value"_s ), fcnSqrt, u"Math"_s )
       << new QgsStaticExpressionFunction( u"radians"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"degrees"_s ), fcnRadians, u"Math"_s )
       << new QgsStaticExpressionFunction( u"degrees"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"radians"_s ), fcnDegrees, u"Math"_s )
-      << new QgsStaticExpressionFunction( u"azimuth"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"point_a"_s ) << QgsExpressionFunction::Parameter( u"point_b"_s ), fcnAzimuth, u"GeometryGroup"_s )
+      << new QgsStaticExpressionFunction( u"azimuth"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"point1"_s ) << QgsExpressionFunction::Parameter( u"point2"_s ), fcnAzimuth, u"GeometryGroup"_s )
       << new QgsStaticExpressionFunction(
            u"bearing"_s,
            QgsExpressionFunction::ParameterList()
-             << QgsExpressionFunction::Parameter( u"point_a"_s )
-             << QgsExpressionFunction::Parameter( u"point_b"_s )
+             << QgsExpressionFunction::Parameter( u"point1"_s )
+             << QgsExpressionFunction::Parameter( u"point2"_s )
              << QgsExpressionFunction::Parameter( u"source_crs"_s, true, QVariant() )
              << QgsExpressionFunction::Parameter( u"ellipsoid"_s, true, QVariant() ),
            fcnBearing,
            u"GeometryGroup"_s
          )
-      << new QgsStaticExpressionFunction( u"inclination"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"point_a"_s ) << QgsExpressionFunction::Parameter( u"point_b"_s ), fcnInclination, u"GeometryGroup"_s )
+      << new QgsStaticExpressionFunction( u"inclination"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"point1"_s ) << QgsExpressionFunction::Parameter( u"point2"_s ), fcnInclination, u"GeometryGroup"_s )
       << new QgsStaticExpressionFunction(
            u"project"_s,
            QgsExpressionFunction::ParameterList()
@@ -8959,6 +9239,21 @@ const QList<QgsExpressionFunction *> &QgsExpression::Functions()
              << QgsExpressionFunction::Parameter( u"range_max"_s )
              << QgsExpressionFunction::Parameter( u"exponent"_s ),
            fcnExponentialScale,
+           u"Math"_s
+         )
+      << new QgsStaticExpressionFunction(
+           u"scale_cubic_bezier"_s,
+           QgsExpressionFunction::ParameterList()
+             << QgsExpressionFunction::Parameter( u"value"_s )
+             << QgsExpressionFunction::Parameter( u"domain_min"_s )
+             << QgsExpressionFunction::Parameter( u"domain_max"_s )
+             << QgsExpressionFunction::Parameter( u"range_min"_s )
+             << QgsExpressionFunction::Parameter( u"range_max"_s )
+             << QgsExpressionFunction::Parameter( u"x1"_s )
+             << QgsExpressionFunction::Parameter( u"y1"_s )
+             << QgsExpressionFunction::Parameter( u"x2"_s )
+             << QgsExpressionFunction::Parameter( u"y2"_s ),
+           fcnCubicBezierScale,
            u"Math"_s
          )
       << new QgsStaticExpressionFunction( u"floor"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"value"_s ), fcnFloor, u"Math"_s )
@@ -9312,6 +9607,7 @@ const QList<QgsExpressionFunction *> &QgsExpression::Functions()
            true
          )
       << new QgsStaticExpressionFunction( u"concat"_s, -1, fcnConcat, u"String"_s, QString(), false, QSet<QString>(), false, QStringList(), true )
+      << new QgsStaticExpressionFunction( u"concat_ws"_s, -1, fcnConcatWs, u"String"_s, QString(), false, QSet<QString>(), false, QStringList(), true )
       << new QgsStaticExpressionFunction( u"strpos"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"haystack"_s ) << QgsExpressionFunction::Parameter( u"needle"_s ), fcnStrpos, u"String"_s )
       << new QgsStaticExpressionFunction( u"left"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"string"_s ) << QgsExpressionFunction::Parameter( u"length"_s ), fcnLeft, u"String"_s )
       << new QgsStaticExpressionFunction( u"right"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"string"_s ) << QgsExpressionFunction::Parameter( u"length"_s ), fcnRight, u"String"_s )
@@ -9583,6 +9879,9 @@ const QList<QgsExpressionFunction *> &QgsExpression::Functions()
       { u"overlay_contains"_s, fcnGeomOverlayContains },
       { u"overlay_crosses"_s, fcnGeomOverlayCrosses },
       { u"overlay_equals"_s, fcnGeomOverlayEquals },
+      { u"overlay_equals_exact"_s, fcnGeomOverlayEqualsExact },
+      { u"overlay_equals_topological"_s, fcnGeomOverlayEqualsTopological },
+      { u"overlay_equals_fuzzy"_s, fcnGeomOverlayEqualsFuzzy },
       { u"overlay_touches"_s, fcnGeomOverlayTouches },
       { u"overlay_disjoint"_s, fcnGeomOverlayDisjoint },
       { u"overlay_within"_s, fcnGeomOverlayWithin },
@@ -9591,6 +9890,7 @@ const QList<QgsExpressionFunction *> &QgsExpression::Functions()
     while ( i.hasNext() )
     {
       i.next();
+      QString defaultBackend = i.key() == "overlay_equals"_L1 ? QString( "QGIS" ) : QString( "GEOS" );
       QgsStaticExpressionFunction *fcnGeomOverlayFunc = new QgsStaticExpressionFunction(
         i.key(),
         QgsExpressionFunction::ParameterList()
@@ -9602,7 +9902,9 @@ const QList<QgsExpressionFunction *> &QgsExpression::Functions()
           << QgsExpressionFunction::Parameter( u"min_overlap"_s, true, QVariant( -1 ), false )
           << QgsExpressionFunction::Parameter( u"min_inscribed_circle_radius"_s, true, QVariant( -1 ), false )
           << QgsExpressionFunction::Parameter( u"return_details"_s, true, false, false )
-          << QgsExpressionFunction::Parameter( u"sort_by_intersection_size"_s, true, QString(), false ),
+          << QgsExpressionFunction::Parameter( u"sort_by_intersection_size"_s, true, QString(), false )
+          << QgsExpressionFunction::Parameter( u"backend"_s, true, defaultBackend, false )
+          << QgsExpressionFunction::Parameter( u"epsilon"_s, true, 1e-4, false ),
         i.value(),
         u"GeometryGroup"_s,
         QString(),
@@ -9764,6 +10066,34 @@ const QList<QgsExpressionFunction *> &QgsExpression::Functions()
       << new QgsStaticExpressionFunction( u"overlaps"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"geometry1"_s ) << QgsExpressionFunction::Parameter( u"geometry2"_s ), fcnOverlaps, u"GeometryGroup"_s )
       << new QgsStaticExpressionFunction( u"within"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"geometry1"_s ) << QgsExpressionFunction::Parameter( u"geometry2"_s ), fcnWithin, u"GeometryGroup"_s )
       << new QgsStaticExpressionFunction( u"equals"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"geometry1"_s ) << QgsExpressionFunction::Parameter( u"geometry2"_s ), fcnEquals, u"GeometryGroup"_s )
+      << new QgsStaticExpressionFunction(
+           u"equals_exact"_s,
+           QgsExpressionFunction::ParameterList()
+             << QgsExpressionFunction::Parameter( u"geometry1"_s )
+             << QgsExpressionFunction::Parameter( u"geometry2"_s )
+             << QgsExpressionFunction::Parameter( u"backend"_s, true, u"QGIS"_s ),
+           fcnIsEqualsExact,
+           u"GeometryGroup"_s
+         )
+      << new QgsStaticExpressionFunction(
+           u"equals_topological"_s,
+           QgsExpressionFunction::ParameterList()
+             << QgsExpressionFunction::Parameter( u"geometry1"_s )
+             << QgsExpressionFunction::Parameter( u"geometry2"_s )
+             << QgsExpressionFunction::Parameter( u"backend"_s, true, u"GEOS"_s ),
+           fcnIsEqualsTopological,
+           u"GeometryGroup"_s
+         )
+      << new QgsStaticExpressionFunction(
+           u"equals_fuzzy"_s,
+           QgsExpressionFunction::ParameterList()
+             << QgsExpressionFunction::Parameter( u"geometry1"_s )
+             << QgsExpressionFunction::Parameter( u"geometry2"_s )
+             << QgsExpressionFunction::Parameter( u"backend"_s, true, u"QGIS"_s )
+             << QgsExpressionFunction::Parameter( u"epsilon"_s, true, 1e-4 ),
+           fcnIsEqualsFuzzy,
+           u"GeometryGroup"_s
+         )
       << new QgsStaticExpressionFunction( u"translate"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"geometry"_s ) << QgsExpressionFunction::Parameter( u"dx"_s ) << QgsExpressionFunction::Parameter( u"dy"_s ), fcnTranslate, u"GeometryGroup"_s )
       << new QgsStaticExpressionFunction(
            u"rotate"_s,
@@ -10305,7 +10635,15 @@ const QList<QgsExpressionFunction *> &QgsExpression::Functions()
 
     // **General** functions
     functions
-      << new QgsStaticExpressionFunction( u"layer_property"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"layer"_s ) << QgsExpressionFunction::Parameter( u"property"_s ), fcnGetLayerProperty, u"Map Layers"_s )
+      << new QgsStaticExpressionFunction(
+           u"layer_property"_s,
+           QgsExpressionFunction::ParameterList()
+             << QgsExpressionFunction::Parameter( u"layer"_s )
+             << QgsExpressionFunction::Parameter( u"property"_s )
+             << QgsExpressionFunction::Parameter( u"translate"_s, true, true ),
+           fcnGetLayerProperty,
+           u"Map Layers"_s
+         )
       << new QgsStaticExpressionFunction( u"decode_uri"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"layer"_s ) << QgsExpressionFunction::Parameter( u"part"_s, true ), fcnDecodeUri, u"Map Layers"_s )
       << new QgsStaticExpressionFunction( u"mime_type"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"binary_data"_s ), fcnMimeType, u"General"_s )
       << new QgsStaticExpressionFunction(
@@ -10444,7 +10782,7 @@ const QList<QgsExpressionFunction *> &QgsExpression::Functions()
       << new QgsStaticExpressionFunction( u"array_length"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"array"_s ), fcnArrayLength, u"Arrays"_s )
       << new QgsStaticExpressionFunction( u"array_contains"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"array"_s ) << QgsExpressionFunction::Parameter( u"value"_s ), fcnArrayContains, u"Arrays"_s )
       << new QgsStaticExpressionFunction( u"array_count"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"array"_s ) << QgsExpressionFunction::Parameter( u"value"_s ), fcnArrayCount, u"Arrays"_s )
-      << new QgsStaticExpressionFunction( u"array_all"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"array_a"_s ) << QgsExpressionFunction::Parameter( u"array_b"_s ), fcnArrayAll, u"Arrays"_s )
+      << new QgsStaticExpressionFunction( u"array_all"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"array1"_s ) << QgsExpressionFunction::Parameter( u"array2"_s ), fcnArrayAll, u"Arrays"_s )
       << new QgsStaticExpressionFunction( u"array_find"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"array"_s ) << QgsExpressionFunction::Parameter( u"value"_s ), fcnArrayFind, u"Arrays"_s )
       << new QgsStaticExpressionFunction( u"array_get"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"array"_s ) << QgsExpressionFunction::Parameter( u"pos"_s ), fcnArrayGet, u"Arrays"_s )
       << new QgsStaticExpressionFunction( u"array_first"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"array"_s ), fcnArrayFirst, u"Arrays"_s )
@@ -10478,7 +10816,7 @@ const QList<QgsExpressionFunction *> &QgsExpression::Functions()
            true
          )
       << new QgsStaticExpressionFunction( u"array_replace"_s, -1, fcnArrayReplace, u"Arrays"_s )
-      << new QgsStaticExpressionFunction( u"array_prioritize"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"array"_s ) << QgsExpressionFunction::Parameter( u"array_prioritize"_s ), fcnArrayPrioritize, u"Arrays"_s )
+      << new QgsStaticExpressionFunction( u"array_prioritize"_s, QgsExpressionFunction::ParameterList() << QgsExpressionFunction::Parameter( u"array"_s ) << QgsExpressionFunction::Parameter( u"priority"_s ), fcnArrayPrioritize, u"Arrays"_s )
       << new QgsStaticExpressionFunction( u"array_cat"_s, -1, fcnArrayCat, u"Arrays"_s )
       << new QgsStaticExpressionFunction(
            u"array_slice"_s,

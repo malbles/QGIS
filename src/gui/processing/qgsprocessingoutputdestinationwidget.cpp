@@ -51,11 +51,7 @@ QgsProcessingLayerOutputDestinationWidget::QgsProcessingLayerOutputDestinationWi
 
   setupUi( this );
 
-  mActionTemporaryOutputIcon = new QAction(
-    QgsApplication::getThemeIcon( u"/mActionCreateMemory.svg"_s ),
-    tr( "Temporary Output" ),
-    this
-  );
+  mActionTemporaryOutputIcon = new QAction( QgsApplication::getThemeIcon( u"/mActionCreateMemory.svg"_s ), tr( "Temporary Output" ), this );
 
   leText->setClearButtonEnabled( false );
 
@@ -175,7 +171,8 @@ QVariant QgsProcessingLayerOutputDestinationWidget::value() const
 
   QString provider;
   QString uri;
-  if ( !key.isEmpty() && key != QgsProcessing::TEMPORARY_OUTPUT
+  if ( !key.isEmpty()
+       && key != QgsProcessing::TEMPORARY_OUTPUT
        && !key.startsWith( "memory:"_L1 )
        && !key.startsWith( "ogr:"_L1 )
        && !key.startsWith( "postgres:"_L1 )
@@ -431,6 +428,8 @@ void QgsProcessingLayerOutputDestinationWidget::selectFile()
     Q_ASSERT( dest );
     lastFormatPath = u"/Processing/LastRasterOutputFormat"_s;
     lastFormat = settings.value( lastFormatPath, dest->defaultFileFormat() ).toString();
+    lastExtPath = u"/Processing/LastRasterOutputExt"_s;
+    lastExt = settings.value( lastExtPath, u".%1"_s.arg( mParameter->defaultFileExtension() ) ).toString();
   }
   else if ( mParameter->type() == QgsProcessingParameterPointCloudDestination::typeName() )
   {
@@ -446,17 +445,40 @@ void QgsProcessingLayerOutputDestinationWidget::selectFile()
   // get default filter
   const QStringList filters = fileFilter.split( u";;"_s );
   QString lastFilter;
-  for ( const QString &f : filters )
+  if ( !lastFormat.isEmpty() && !lastExt.isEmpty() )
   {
-    if ( !lastFormat.isEmpty() && f.contains( lastFormat, Qt::CaseInsensitive ) )
+    // If we have both the format and extension, use in priority the filter
+    // that associates both, in case of multiple extensions per format.
+    for ( const QString &f : filters )
     {
-      lastFilter = f;
-      break;
+      // "%1 - %2 " pattern from QgsProcessingParameterRasterDestination::createFileFilter()
+      if ( f.contains( u"%1 - %2 "_s.arg( lastFormat, lastExt ), Qt::CaseInsensitive ) )
+      {
+        lastFilter = f;
+        break;
+      }
     }
-    else if ( !lastExt.isEmpty() && f.contains( u"*.%1"_s.arg( lastExt ), Qt::CaseInsensitive ) )
+  }
+  if ( lastFilter.isEmpty() && !lastFormat.isEmpty() )
+  {
+    for ( const QString &f : filters )
     {
-      lastFilter = f;
-      break;
+      if ( f.contains( lastFormat, Qt::CaseInsensitive ) )
+      {
+        lastFilter = f;
+        break;
+      }
+    }
+  }
+  if ( lastFilter.isEmpty() && !lastExt.isEmpty() )
+  {
+    for ( const QString &f : filters )
+    {
+      if ( f.contains( u"*.%1"_s.arg( lastExt ), Qt::CaseInsensitive ) )
+      {
+        lastFilter = f;
+        break;
+      }
     }
   }
 
@@ -468,7 +490,8 @@ void QgsProcessingLayerOutputDestinationWidget::selectFile()
 
   const bool dontConfirmOverwrite = mParameter->metadata().value( u"widget_wrapper"_s ).toMap().value( u"dontconfirmoverwrite"_s, false ).toBool();
 
-  QString filename = QFileDialog::getSaveFileName( this, tr( "Save file" ), path, fileFilter, &lastFilter, dontConfirmOverwrite ? QFileDialog::Options( QFileDialog::DontConfirmOverwrite ) : QFileDialog::Options() );
+  QString filename
+    = QFileDialog::getSaveFileName( this, tr( "Save file" ), path, fileFilter, &lastFilter, dontConfirmOverwrite ? QFileDialog::Options( QFileDialog::DontConfirmOverwrite ) : QFileDialog::Options() );
   if ( !filename.isEmpty() )
   {
     mUseTemporary = false;
@@ -496,7 +519,7 @@ void QgsProcessingLayerOutputDestinationWidget::selectFile()
     settings.setValue( u"/Processing/LastOutputPath"_s, QFileInfo( filename ).path() );
     if ( !lastFormatPath.isEmpty() && !mFormat.isEmpty() )
       settings.setValue( lastFormatPath, mFormat );
-    else if ( !lastExtPath.isEmpty() )
+    if ( !lastExtPath.isEmpty() )
       settings.setValue( lastExtPath, QFileInfo( filename ).suffix().toLower() );
 
     emit skipOutputChanged( false );
@@ -608,9 +631,7 @@ void QgsProcessingLayerOutputDestinationWidget::appendToLayer()
 
     panel->openPanel( widget );
 
-    connect( widget, &QgsDataSourceSelectWidget::itemTriggered, this, [widget]( const QgsMimeDataUtils::Uri & ) {
-      widget->acceptPanel();
-    } );
+    connect( widget, &QgsDataSourceSelectWidget::itemTriggered, this, [widget]( const QgsMimeDataUtils::Uri & ) { widget->acceptPanel(); } );
     connect( widget, &QgsPanelWidget::panelAccepted, this, [this, widget]() {
       if ( widget->uri().uri.isEmpty() )
         setValue( QVariant() );
@@ -717,19 +738,20 @@ QString QgsProcessingLayerOutputDestinationWidget::mimeDataToPath( const QMimeDa
     if ( ( mParameter->type() == QgsProcessingParameterFeatureSink::typeName()
            || mParameter->type() == QgsProcessingParameterVectorDestination::typeName()
            || mParameter->type() == QgsProcessingParameterFileDestination::typeName() )
-         && u.layerType == "vector"_L1 && u.providerKey == "ogr"_L1 )
+         && u.layerType == "vector"_L1
+         && u.providerKey == "ogr"_L1 )
     {
       return u.uri;
     }
-    else if ( ( mParameter->type() == QgsProcessingParameterRasterDestination::typeName()
-                || mParameter->type() == QgsProcessingParameterFileDestination::typeName() )
-              && u.layerType == "raster"_L1 && u.providerKey == "gdal"_L1 )
+    else if ( ( mParameter->type() == QgsProcessingParameterRasterDestination::typeName() || mParameter->type() == QgsProcessingParameterFileDestination::typeName() )
+              && u.layerType == "raster"_L1
+              && u.providerKey == "gdal"_L1 )
     {
       return u.uri;
     }
-    else if ( ( mParameter->type() == QgsProcessingParameterPointCloudDestination::typeName()
-                || mParameter->type() == QgsProcessingParameterFileDestination::typeName() )
-              && u.layerType == "pointcloud"_L1 && ( u.providerKey == "ept"_L1 || u.providerKey == "pdal"_L1 ) )
+    else if ( ( mParameter->type() == QgsProcessingParameterPointCloudDestination::typeName() || mParameter->type() == QgsProcessingParameterFileDestination::typeName() )
+              && u.layerType == "pointcloud"_L1
+              && ( u.providerKey == "ept"_L1 || u.providerKey == "pdal"_L1 ) )
     {
       return u.uri;
     }
@@ -740,8 +762,7 @@ QString QgsProcessingLayerOutputDestinationWidget::mimeDataToPath( const QMimeDa
       return u.uri;
 
 #endif
-    else if ( mParameter->type() == QgsProcessingParameterFolderDestination::typeName()
-              && u.layerType == "directory"_L1 )
+    else if ( mParameter->type() == QgsProcessingParameterFolderDestination::typeName() && u.layerType == "directory"_L1 )
     {
       return u.uri;
     }

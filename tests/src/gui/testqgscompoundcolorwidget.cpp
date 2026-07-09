@@ -35,7 +35,8 @@ class TestQgsCompoundColorWidget : public QgsTest
 
   public:
     TestQgsCompoundColorWidget()
-      : QgsTest( u"Compound color widget Tests"_s ) {}
+      : QgsTest( u"Compound color widget Tests"_s )
+    {}
 
   private slots:
     void initTestCase();    // will be called before the first testfunction is executed.
@@ -55,23 +56,18 @@ class TestQgsCompoundColorWidget : public QgsTest
 
 void TestQgsCompoundColorWidget::initTestCase()
 {
-  // Set up the QgsSettings environment
-  QCoreApplication::setOrganizationName( u"QGIS"_s );
-  QCoreApplication::setOrganizationDomain( u"qgis.org"_s );
-  QCoreApplication::setApplicationName( u"QGIS-TEST"_s );
+  QgsApplication::init();
+  QgsApplication::initQgis();
 }
 
 void TestQgsCompoundColorWidget::cleanupTestCase()
-{
-}
+{}
 
 void TestQgsCompoundColorWidget::init()
-{
-}
+{}
 
 void TestQgsCompoundColorWidget::cleanup()
-{
-}
+{}
 
 void TestQgsCompoundColorWidget::testCmykConversion()
 {
@@ -151,7 +147,8 @@ void TestQgsCompoundColorWidget::testComponentSettings()
   QCOMPARE( w.mVerticalRamp->component(), newComponent );
 
   w.saveSettings();
-  const int newValue = QgsSettings().value( QgsColorWidget::colorSpec( expectedComponent ) == QColor::Cmyk ? u"Windows/ColorDialog/activeCmykComponent"_s : u"Windows/ColorDialog/activeComponent"_s, -1 ).toInt();
+  const int newValue
+    = QgsSettings().value( QgsColorWidget::colorSpec( expectedComponent ) == QColor::Cmyk ? u"Windows/ColorDialog/activeCmykComponent"_s : u"Windows/ColorDialog/activeComponent"_s, -1 ).toInt();
   QCOMPARE( newValue, newSettingsComponent );
 }
 

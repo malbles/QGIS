@@ -72,9 +72,7 @@ QgsTaskManagerWidget::QgsTaskManagerWidget( QgsTaskManager *manager, QWidget *pa
 }
 
 QgsTaskManagerWidget::~QgsTaskManagerWidget()
-{
-  delete mModel;
-}
+{}
 
 
 void QgsTaskManagerWidget::modelRowsInserted( const QModelIndex &, int start, int end )
@@ -581,8 +579,10 @@ QgsTaskManagerFloatingWidget::QgsTaskManagerFloatingWidget( QgsTaskManager *mana
   const int minHeight = static_cast<int>( fontMetrics().height() * 15 * Qgis::UI_SCALE_FACTOR );
   setMinimumSize( minWidth, minHeight );
   layout()->addWidget( w );
-  setStyleSheet( ".QgsTaskManagerFloatingWidget { border-top-left-radius: 8px;"
-                 "border-top-right-radius: 8px; background-color: rgba(0, 0, 0, 70%); }" );
+  setStyleSheet(
+    ".QgsTaskManagerFloatingWidget { border-top-left-radius: 8px;"
+    "border-top-right-radius: 8px; background-color: rgba(0, 0, 0, 70%); }"
+  );
 }
 
 

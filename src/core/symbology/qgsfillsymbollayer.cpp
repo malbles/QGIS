@@ -526,7 +526,7 @@ double QgsSimpleFillSymbolLayer::estimateMaxBleed( const QgsRenderContext &conte
   return penBleed + offsetBleed;
 }
 
-double QgsSimpleFillSymbolLayer::dxfWidth( const QgsDxfExport &e, QgsSymbolRenderContext &context ) const
+double QgsSimpleFillSymbolLayer::dxfWidth( QgsSymbolRenderContext &context ) const
 {
   double width = mStrokeWidth;
   if ( mDataDefinedProperties.isActive( QgsSymbolLayer::Property::StrokeWidth ) )
@@ -534,7 +534,7 @@ double QgsSimpleFillSymbolLayer::dxfWidth( const QgsDxfExport &e, QgsSymbolRende
     context.setOriginalValueVariable( mStrokeWidth );
     width = mDataDefinedProperties.valueAsDouble( QgsSymbolLayer::Property::StrokeWidth, context.renderContext().expressionContext(), mStrokeWidth );
   }
-  return width * QgsDxfExport::mapUnitScaleFactor( e.symbologyScale(), mStrokeWidthUnit, e.mapUnits(), context.renderContext().mapToPixel().mapUnitsPerPixel() );
+  return context.renderContext().convertToMapUnits( width, mStrokeWidthUnit );
 }
 
 QColor QgsSimpleFillSymbolLayer::dxfColor( QgsSymbolRenderContext &context ) const
@@ -1859,7 +1859,7 @@ QgsMapUnitScale QgsImageFillSymbolLayer::mapUnitScale() const
   return mStrokeWidthMapUnitScale;
 }
 
-double QgsImageFillSymbolLayer::dxfWidth( const QgsDxfExport &e, QgsSymbolRenderContext &context ) const
+double QgsImageFillSymbolLayer::dxfWidth( QgsSymbolRenderContext &context ) const
 {
   double width = mStrokeWidth;
   if ( mDataDefinedProperties.isActive( QgsSymbolLayer::Property::Width ) )
@@ -1867,7 +1867,7 @@ double QgsImageFillSymbolLayer::dxfWidth( const QgsDxfExport &e, QgsSymbolRender
     context.setOriginalValueVariable( mStrokeWidth );
     width = mDataDefinedProperties.valueAsDouble( QgsSymbolLayer::Property::Width, context.renderContext().expressionContext(), mStrokeWidth );
   }
-  return width * QgsDxfExport::mapUnitScaleFactor( e.symbologyScale(), mStrokeWidthUnit, e.mapUnits(), context.renderContext().mapToPixel().mapUnitsPerPixel() );
+  return context.renderContext().convertToMapUnits( width, mStrokeWidthUnit );
 }
 
 Qt::PenStyle QgsImageFillSymbolLayer::dxfPenStyle() const
@@ -3429,7 +3429,7 @@ void QgsLinePatternFillSymbolLayer::renderPolygon( const QPolygonF &points, cons
     if ( shapeEngine )
     {
       QgsLineString ls( QgsPoint( x1, y1 ), QgsPoint( x2, y2 ) );
-      std::unique_ptr< QgsAbstractGeometry > intersection( shapeEngine->intersection( &ls ) );
+      std::unique_ptr< QgsAbstractGeometry > intersection( shapeEngine->intersection( &ls, nullptr, QgsGeometryParameters(), context.renderContext().feedback() ) );
       for ( auto it = intersection->const_parts_begin(); it != intersection->const_parts_end(); ++it )
       {
         if ( const QgsLineString *ls = qgsgeometry_cast< const QgsLineString * >( *it ) )
@@ -5694,7 +5694,7 @@ void QgsRandomMarkerFillSymbolLayer::render( QgsRenderContext &context, const QV
     }
     if ( !geom.isGeosValid() )
     {
-      geom = geom.buffer( 0, 0 );
+      geom = geom.buffer( 0, 0, context.feedback() );
     }
     geometryParts << geom;
 
@@ -5708,7 +5708,7 @@ void QgsRandomMarkerFillSymbolLayer::render( QgsRenderContext &context, const QV
     }
   }
 
-  const QgsGeometry geom = geometryParts.count() != 1 ? QgsGeometry::unaryUnion( geometryParts ) : geometryParts.at( 0 );
+  const QgsGeometry geom = geometryParts.count() != 1 ? QgsGeometry::unaryUnion( geometryParts, QgsGeometryParameters(), context.feedback() ) : geometryParts.at( 0 );
 
   if ( clipPoints )
   {

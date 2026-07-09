@@ -309,6 +309,7 @@ void TestQgs3DCameraController::testRotationCenter()
 
   // look from the top
   scene->cameraController()->setLookingAtPoint( QgsVector3D( 0, 0, 0 ), 2500, 0, 0 );
+  scene->cameraController()->setVerticalAxisInversion( Qgis::VerticalAxisInversion::Never );
   QVector3D initialCamViewCenter = scene->cameraController()->camera()->viewCenter();
   QVector3D initialCamPosition = scene->cameraController()->camera()->position();
   float initialPitch = scene->cameraController()->pitch();
@@ -384,6 +385,7 @@ void TestQgs3DCameraController::testRotationCamera()
 
   // look from the top
   scene->cameraController()->setLookingAtPoint( QgsVector3D( 0, 0, 0 ), 2500, 0, 0 );
+  scene->cameraController()->setVerticalAxisInversion( Qgis::VerticalAxisInversion::Never );
   QVector3D initialCamViewCenter = scene->cameraController()->camera()->viewCenter();
   QVector3D initialCamPosition = scene->cameraController()->camera()->position();
   float initialPitch = scene->cameraController()->pitch();
@@ -460,6 +462,7 @@ void TestQgs3DCameraController::testRotationCenterZoomWheelRotationCenter()
 
   // look from the top
   scene->cameraController()->setLookingAtPoint( QgsVector3D( 0, 0, 0 ), 2500, 0, 0 );
+  scene->cameraController()->setVerticalAxisInversion( Qgis::VerticalAxisInversion::Never );
   waitForNearPlane( engine, scene, 1000 );
 
   QVector3D initialCamViewCenter = scene->cameraController()->camera()->viewCenter();
@@ -603,6 +606,7 @@ void TestQgs3DCameraController::testTranslateRotationCenterTranslate()
 
   // look from the top
   scene->cameraController()->setLookingAtPoint( QgsVector3D( 0, 0, 0 ), 2500, 0, 0 );
+  scene->cameraController()->setVerticalAxisInversion( Qgis::VerticalAxisInversion::Never );
   waitForNearPlane( engine, scene, 1000 );
 
   QVector3D initialCamViewCenter = scene->cameraController()->camera()->viewCenter();
@@ -882,6 +886,7 @@ void TestQgs3DCameraController::testTranslateRotationCameraTranslate()
 
   // look from the top
   scene->cameraController()->setLookingAtPoint( QgsVector3D( 0, 0, 0 ), 2500, 0, 0 );
+  scene->cameraController()->setVerticalAxisInversion( Qgis::VerticalAxisInversion::Never );
   QVector3D initialCamViewCenter = scene->cameraController()->camera()->viewCenter();
   QVector3D initialCamPosition = scene->cameraController()->camera()->position();
   float initialPitch = scene->cameraController()->pitch();
@@ -1023,6 +1028,7 @@ void TestQgs3DCameraController::testRotationCenterRotationCameraRotationCenter()
 
   // look from the top
   scene->cameraController()->setLookingAtPoint( QgsVector3D( 0, 0, 0 ), 2500, 0, 0 );
+  scene->cameraController()->setVerticalAxisInversion( Qgis::VerticalAxisInversion::Never );
   QVector3D initialCamViewCenter = scene->cameraController()->camera()->viewCenter();
   QVector3D initialCamPosition = scene->cameraController()->camera()->position();
   float initialPitch = scene->cameraController()->pitch();
@@ -1287,10 +1293,11 @@ void TestQgs3DCameraController::testOrthographic()
   Qgs3DMapScene *scene = new Qgs3DMapScene( *mapSettings, &engine );
   engine.setRootEntity( scene );
 
-  mapSettings->setProjectionType( Qt3DRender::QCameraLens::ProjectionType::OrthographicProjection );
+  mapSettings->setProjectionType( Qgis::Map3DProjectionType::Orthographic );
 
   // look from the top
   scene->cameraController()->setLookingAtPoint( QgsVector3D( 0, 0, 0 ), 2500, 0, 0 );
+  scene->cameraController()->setVerticalAxisInversion( Qgis::VerticalAxisInversion::Never );
 
   Qgs3DUtils::waitForEntitiesLoaded( scene );
   Qgs3DUtils::waitForFrame( engine, scene );
@@ -1321,7 +1328,7 @@ void TestQgs3DCameraController::testOrthographic()
   QMouseEvent mouseReleaseEvent1( QEvent::MouseButtonRelease, midPos + movement1, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier );
   scene->cameraController()->onMouseReleased( new Qt3DInput::QMouseEvent( mouseReleaseEvent1 ) );
 
-  QGSCOMPARENEARVECTOR3D( scene->cameraController()->cameraPose().centerPoint(), QgsVector3D( -2338, 582, 0 ), 5 );
+  QGSCOMPARENEARVECTOR3D( scene->cameraController()->cameraPose().centerPoint(), QgsVector3D( -1853, 582, 0 ), 5 );
 
   // Rotate to look sideways
   QMouseEvent mousePressEvent2( QEvent::MouseButtonPress, midPos, Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier );
@@ -1337,7 +1344,7 @@ void TestQgs3DCameraController::testOrthographic()
   QMouseEvent mouseReleaseEvent2( QEvent::MouseButtonRelease, midPos + movement2, Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier );
   scene->cameraController()->onMouseReleased( new Qt3DInput::QMouseEvent( mouseReleaseEvent2 ) );
 
-  QGSCOMPARENEARVECTOR3D( scene->cameraController()->cameraPose().centerPoint(), QgsVector3D( -2338, 1690, 403 ), 5 );
+  QGSCOMPARENEARVECTOR3D( scene->cameraController()->cameraPose().centerPoint(), QgsVector3D( -1853, 1690, 403 ), 5 );
   QGSCOMPARENEAR( scene->cameraController()->pitch(), 40, 1 );
   QGSCOMPARENEAR( scene->cameraController()->yaw(), 0, 1 );
 
@@ -1355,7 +1362,7 @@ void TestQgs3DCameraController::testOrthographic()
   QMouseEvent mouseReleaseEvent3( QEvent::MouseButtonRelease, midPos + movement3, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier );
   scene->cameraController()->onMouseReleased( new Qt3DInput::QMouseEvent( mouseReleaseEvent3 ) );
 
-  QGSCOMPARENEARVECTOR3D( scene->cameraController()->cameraPose().centerPoint(), QgsVector3D( -2338, 502, 137 ), 5 );
+  QGSCOMPARENEARVECTOR3D( scene->cameraController()->cameraPose().centerPoint(), QgsVector3D( -1853, 502, 137 ), 5 );
 
   delete scene;
   mapSettings->setLayers( {} );

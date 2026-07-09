@@ -55,14 +55,16 @@ QString QgsFixGeometryDeleteFeaturesAlgorithm::groupId() const
 
 QString QgsFixGeometryDeleteFeaturesAlgorithm::shortHelpString() const
 {
-  return QObject::tr( "This algorithm deletes error features listed in the errors layer from an algorithm in the \"Check geometry\" section.\n"
-                      "The required inputs are the original layer used in the check algorithm, its unique id field, and its corresponding errors layer.\n\n"
-                      "For instance, it can be used after the following check algorithms to delete error features:"
-                      "<html><ul><li>Feature inside polygon</li>"
-                      "<li>Degenerate polygons</li>"
-                      "<li>Small segments</li>"
-                      "<li>Duplicated geometries</li>"
-                      "<li>etc.</li></ul></html>" );
+  return QObject::tr(
+    "This algorithm deletes error features listed in the errors layer from an algorithm in the \"Check geometry\" section.\n"
+    "The required inputs are the original layer used in the check algorithm, its unique id field, and its corresponding errors layer.\n\n"
+    "For instance, it can be used after the following check algorithms to delete error features:"
+    "<html><ul><li>Feature inside polygon</li>"
+    "<li>Degenerate polygons</li>"
+    "<li>Small segments</li>"
+    "<li>Duplicated geometries</li>"
+    "<li>etc.</li></ul></html>"
+  );
 }
 
 QgsFixGeometryDeleteFeaturesAlgorithm *QgsFixGeometryDeleteFeaturesAlgorithm::createInstance() const
@@ -75,26 +77,15 @@ void QgsFixGeometryDeleteFeaturesAlgorithm::initAlgorithm( const QVariantMap &co
   Q_UNUSED( configuration )
 
   addParameter( new QgsProcessingParameterFeatureSource(
-    u"INPUT"_s, QObject::tr( "Input layer" ),
-    QList<int>()
-      << static_cast<int>( Qgis::ProcessingSourceType::VectorPoint )
-      << static_cast<int>( Qgis::ProcessingSourceType::VectorLine )
-      << static_cast<int>( Qgis::ProcessingSourceType::VectorPolygon )
+    u"INPUT"_s,
+    QObject::tr( "Input layer" ),
+    QList<int>() << static_cast<int>( Qgis::ProcessingSourceType::VectorPoint ) << static_cast<int>( Qgis::ProcessingSourceType::VectorLine ) << static_cast<int>( Qgis::ProcessingSourceType::VectorPolygon )
   ) );
-  addParameter( new QgsProcessingParameterFeatureSource(
-    u"ERRORS"_s, QObject::tr( "Error layer" ), QList<int>() << static_cast<int>( Qgis::ProcessingSourceType::VectorPoint )
-  ) );
-  addParameter( new QgsProcessingParameterField(
-    u"UNIQUE_ID"_s, QObject::tr( "Field of original feature unique identifier" ),
-    QString(), u"ERRORS"_s
-  ) );
+  addParameter( new QgsProcessingParameterFeatureSource( u"ERRORS"_s, QObject::tr( "Error layer" ), QList<int>() << static_cast<int>( Qgis::ProcessingSourceType::VectorPoint ) ) );
+  addParameter( new QgsProcessingParameterField( u"UNIQUE_ID"_s, QObject::tr( "Field of original feature unique identifier" ), QString(), u"ERRORS"_s ) );
 
-  addParameter( new QgsProcessingParameterFeatureSink(
-    u"OUTPUT"_s, QObject::tr( "Cleaned layer" ), Qgis::ProcessingSourceType::VectorAnyGeometry
-  ) );
-  addParameter( new QgsProcessingParameterFeatureSink(
-    u"REPORT"_s, QObject::tr( "Report layer from deleting features" ), Qgis::ProcessingSourceType::VectorPoint
-  ) );
+  addParameter( new QgsProcessingParameterFeatureSink( u"OUTPUT"_s, QObject::tr( "Cleaned layer" ), Qgis::ProcessingSourceType::VectorAnyGeometry ) );
+  addParameter( new QgsProcessingParameterFeatureSink( u"REPORT"_s, QObject::tr( "Report layer from deleting features" ), Qgis::ProcessingSourceType::VectorPoint ) );
 }
 
 QVariantMap QgsFixGeometryDeleteFeaturesAlgorithm::processAlgorithm( const QVariantMap &parameters, QgsProcessingContext &context, QgsProcessingFeedback *feedback )
@@ -169,6 +160,8 @@ QVariantMap QgsFixGeometryDeleteFeaturesAlgorithm::processAlgorithm( const QVari
       reportFeature.setAttributes( errorFeature.attributes() << u"Feature deleted"_s << true );
       if ( !sink_report->addFeature( reportFeature, QgsFeatureSink::FastInsert ) )
         throw QgsProcessingException( writeFeatureError( sink_report.get(), parameters, u"REPORT"_s ) );
+      else
+        feedback->featureAddedToSink( u"REPORT"_s );
     }
     else
     {
@@ -176,9 +169,16 @@ QVariantMap QgsFixGeometryDeleteFeaturesAlgorithm::processAlgorithm( const QVari
       // Just add it to the output sink.
       if ( !sink_output->addFeature( inputFeature, QgsFeatureSink::FastInsert ) )
         throw QgsProcessingException( writeFeatureError( sink_output.get(), parameters, u"OUTPUT"_s ) );
+      else
+        feedback->featureAddedToSink( u"OUTPUT"_s );
     }
   }
   feedback->setProgress( 100 );
+
+  sink_report->finalize();
+  feedback->featureSinkFinalized( u"REPORT"_s );
+  sink_output->finalize();
+  feedback->featureSinkFinalized( u"OUTPUT"_s );
 
   QVariantMap outputs;
   outputs.insert( u"OUTPUT"_s, dest_output );

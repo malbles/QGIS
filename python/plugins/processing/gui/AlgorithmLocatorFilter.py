@@ -34,7 +34,7 @@ from qgis.core import (
 from qgis.utils import iface
 
 from processing.core.ProcessingConfig import ProcessingConfig
-from processing.gui.AlgorithmDialog import AlgorithmDialog
+from processing.gui.algorithm_widget import AlgorithmWidget
 from processing.gui.AlgorithmExecutor import execute_in_place
 from processing.gui.MessageBarProgress import MessageBarProgress
 from processing.gui.MessageDialog import MessageDialog
@@ -124,22 +124,10 @@ class AlgorithmLocatorFilter(QgsLocatorFilter):
             dlg.setMessage(message)
             dlg.exec()
             return
-        dlg = alg.createCustomParametersWidget(parent=iface.mainWindow())
-        if not dlg:
-            dlg = AlgorithmDialog(alg, parent=iface.mainWindow())
-        canvas = iface.mapCanvas()
-        prevMapTool = canvas.mapTool()
-        dlg.show()
-        dlg.exec()
-        if canvas.mapTool() != prevMapTool:
-            try:
-                canvas.mapTool().reset()
-            except:
-                pass
-            try:
-                canvas.setMapTool(prevMapTool)
-            except RuntimeError:
-                pass
+        widget = alg.createCustomParametersWidget(parent=iface.mainWindow())
+        if not widget:
+            widget = AlgorithmWidget(alg)
+        widget.exec()
 
 
 class InPlaceAlgorithmLocatorFilter(QgsLocatorFilter):
@@ -233,38 +221,7 @@ class InPlaceAlgorithmLocatorFilter(QgsLocatorFilter):
             dlg.exec()
             return
 
-        in_place_input_parameter_name = "INPUT"
-        if hasattr(alg, "inputParameterName"):
-            in_place_input_parameter_name = alg.inputParameterName()
-
-        if [
-            d
-            for d in alg.parameterDefinitions()
-            if d.name() not in (in_place_input_parameter_name, "OUTPUT")
-        ]:
-            dlg = alg.createCustomParametersWidget(parent=iface.mainWindow())
-            if not dlg:
-                dlg = AlgorithmDialog(alg, True, parent=iface.mainWindow())
-            canvas = iface.mapCanvas()
-            prevMapTool = canvas.mapTool()
-            dlg.show()
-            dlg.exec()
-            if canvas.mapTool() != prevMapTool:
-                try:
-                    canvas.mapTool().reset()
-                except:
-                    pass
-                canvas.setMapTool(prevMapTool)
-        else:
-            feedback = MessageBarProgress(algname=alg.displayName())
-            parameters = {}
-            ok, results = execute_in_place(alg, parameters, feedback=feedback)
-            if ok:
-                iface.messageBar().pushSuccess(
-                    "",
-                    self.tr(
-                        "{algname} completed. %n feature(s) processed.",
-                        n=results["__count"],
-                    ).format(algname=alg.displayName()),
-                )
-            feedback.close()
+        widget = alg.createCustomParametersWidget(parent=iface.mainWindow())
+        if not widget:
+            widget = AlgorithmWidget(alg, True)
+        widget.exec()

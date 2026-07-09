@@ -53,22 +53,26 @@ QString QgsCheckValidityAlgorithm::groupId() const
 
 QString QgsCheckValidityAlgorithm::shortHelpString() const
 {
-  return QObject::tr( "This algorithm performs a validity check on the geometries of a vector layer.\n\n"
-                      "The geometries are classified in three groups (valid, invalid and error), and a vector layer "
-                      "is generated with the features in each of these categories.\n\n"
-                      "By default the algorithm uses the strict OGC definition of polygon validity, where a polygon "
-                      "is marked as invalid if a self-intersecting ring causes an interior hole. If the 'Ignore "
-                      "ring self intersections' option is checked, then this rule will be ignored and a more "
-                      "lenient validity check will be performed.\n\n"
-                      "The GEOS method is faster and performs better on larger geometries, but is limited to only "
-                      "returning the first error encountered in a geometry. The QGIS method will be slower but "
-                      "reports all errors encountered in the geometry, not just the first." );
+  return QObject::tr(
+    "This algorithm performs a validity check on the geometries of a vector layer.\n\n"
+    "The geometries are classified in three groups (valid, invalid and error), and a vector layer "
+    "is generated with the features in each of these categories.\n\n"
+    "By default the algorithm uses the strict OGC definition of polygon validity, where a polygon "
+    "is marked as invalid if a self-intersecting ring causes an interior hole. If the 'Ignore "
+    "ring self intersections' option is checked, then this rule will be ignored and a more "
+    "lenient validity check will be performed.\n\n"
+    "The GEOS method is faster and performs better on larger geometries, but is limited to only "
+    "returning the first error encountered in a geometry. The QGIS method will be slower but "
+    "reports all errors encountered in the geometry, not just the first."
+  );
 }
 
 QString QgsCheckValidityAlgorithm::shortDescription() const
 {
-  return QObject::tr( "Performs a validity check on the geometries of a vector layer "
-                      "and classifies them in three groups (valid, invalid and error)." );
+  return QObject::tr(
+    "Performs a validity check on the geometries of a vector layer "
+    "and classifies them in three groups (valid, invalid and error)."
+  );
 }
 
 QgsCheckValidityAlgorithm *QgsCheckValidityAlgorithm::createInstance() const
@@ -80,10 +84,7 @@ void QgsCheckValidityAlgorithm::initAlgorithm( const QVariantMap & )
 {
   addParameter( new QgsProcessingParameterFeatureSource( u"INPUT_LAYER"_s, QObject::tr( "Input layer" ), QList<int>() << static_cast<int>( Qgis::ProcessingSourceType::VectorAnyGeometry ) ) );
 
-  const QStringList options = QStringList()
-                              << QObject::tr( "The one selected in digitizing settings" )
-                              << u"QGIS"_s
-                              << u"GEOS"_s;
+  const QStringList options = QStringList() << QObject::tr( "The one selected in digitizing settings" ) << u"QGIS"_s << u"GEOS"_s;
   auto methodParam = std::make_unique<QgsProcessingParameterEnum>( u"METHOD"_s, QObject::tr( "Method" ), options, false, 2 );
   QVariantMap methodParamMetadata;
   QVariantMap widgetMetadata;
@@ -178,6 +179,10 @@ QVariantMap QgsCheckValidityAlgorithm::processAlgorithm( const QVariantMap &para
             {
               throw QgsProcessingException( writeFeatureError( errorSink.get(), parameters, u"ERROR_OUTPUT"_s ) );
             }
+            else
+            {
+              feedback->featureAddedToSink( u"ERROR_OUTPUT"_s );
+            }
           }
           errorCount++;
           reasons.append( error.what() );
@@ -201,6 +206,10 @@ QVariantMap QgsCheckValidityAlgorithm::processAlgorithm( const QVariantMap &para
       {
         throw QgsProcessingException( writeFeatureError( validSink.get(), parameters, u"VALID_OUTPUT"_s ) );
       }
+      else if ( validSink )
+      {
+        feedback->featureAddedToSink( u"VALID_OUTPUT"_s );
+      }
       validCount++;
     }
     else
@@ -208,6 +217,10 @@ QVariantMap QgsCheckValidityAlgorithm::processAlgorithm( const QVariantMap &para
       if ( invalidSink && !invalidSink->addFeature( f, QgsFeatureSink::FastInsert ) )
       {
         throw QgsProcessingException( writeFeatureError( invalidSink.get(), parameters, u"INVALID_OUTPUT"_s ) );
+      }
+      else if ( invalidSink )
+      {
+        feedback->featureAddedToSink( u"INVALID_OUTPUT"_s );
       }
       invalidCount++;
     }
@@ -219,14 +232,17 @@ QVariantMap QgsCheckValidityAlgorithm::processAlgorithm( const QVariantMap &para
   if ( validSink )
   {
     validSink->finalize();
+    feedback->featureSinkFinalized( u"VALID_OUTPUT"_s );
   }
   if ( invalidSink )
   {
     invalidSink->finalize();
+    feedback->featureSinkFinalized( u"INVALID_OUTPUT"_s );
   }
   if ( errorSink )
   {
     errorSink->finalize();
+    feedback->featureSinkFinalized( u"ERROR_OUTPUT"_s );
   }
 
   QVariantMap outputs;
