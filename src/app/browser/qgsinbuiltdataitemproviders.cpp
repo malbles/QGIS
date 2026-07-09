@@ -1865,7 +1865,7 @@ void QgsDatabaseItemGuiProvider::populateContextMenu( QgsDataItem *item, QMenu *
       // Until we can make the generic method flexible enough to handle that logic, hide the generic
       // action from these providers so we don't get two different Rename actions.
 
-      const bool providerImplementsRename = layerItem->providerKey() == "postgresraster"_L1 || layerItem->providerKey() == u"postgres"_s || qobject_cast< QgsGeoPackageVectorLayerItem * >( layerItem );
+      const bool providerImplementsRename = layerItem->providerKey() == "postgresraster"_L1 || layerItem->providerKey() == "postgres"_L1 || qobject_cast< QgsGeoPackageVectorLayerItem * >( layerItem );
       if ( !providerImplementsRename )
       {
         QAction *renameTableAction = new QAction( tr( "Rename Table…" ), menu );
